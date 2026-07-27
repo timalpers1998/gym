@@ -67,13 +67,17 @@ struct TemplateEditorView: View {
             .navigationTitle(isNew ? "New Routine" : "Edit Routine")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
-                        cancel()
+                // Existing routines are edited live, so there is no revert —
+                // offer a single "Done" instead of a misleading Cancel.
+                if isNew {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Cancel") {
+                            cancel()
+                        }
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") {
+                    Button(isNew ? "Save" : "Done") {
                         save()
                     }
                     .fontWeight(.semibold)
@@ -93,7 +97,7 @@ struct TemplateEditorView: View {
                 }
             }
         }
-        .interactiveDismissDisabled()
+        .interactiveDismissDisabled(isNew)
     }
 
     private func setSummary(for templateExercise: TemplateExercise) -> String {

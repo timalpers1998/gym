@@ -16,16 +16,22 @@ struct ExerciseLibraryView: View {
         }
     }
 
-    private var groupedExercises: [(group: MuscleGroup, exercises: [Exercise])] {
+    private struct ExerciseGroup: Identifiable {
+        let group: MuscleGroup
+        let exercises: [Exercise]
+        var id: MuscleGroup { group }
+    }
+
+    private var groupedExercises: [ExerciseGroup] {
         MuscleGroup.allCases.compactMap { group in
             let members = visibleExercises.filter { $0.muscleGroup == group }
-            return members.isEmpty ? nil : (group, members)
+            return members.isEmpty ? nil : ExerciseGroup(group: group, exercises: members)
         }
     }
 
     var body: some View {
         List {
-            ForEach(groupedExercises, id: \.group) { entry in
+            ForEach(groupedExercises) { entry in
                 Section(entry.group.displayName) {
                     ForEach(entry.exercises) { exercise in
                         NavigationLink {
@@ -72,7 +78,15 @@ struct ExerciseLibraryView: View {
         }
         .overlay {
             if visibleExercises.isEmpty {
-                ContentUnavailableView.search(text: searchText)
+                if searchText.isEmpty {
+                    ContentUnavailableView(
+                        "No Exercises",
+                        systemImage: "dumbbell",
+                        description: Text("Archived exercises are hidden. Use the filter to show them, or add a new exercise.")
+                    )
+                } else {
+                    ContentUnavailableView.search(text: searchText)
+                }
             }
         }
     }

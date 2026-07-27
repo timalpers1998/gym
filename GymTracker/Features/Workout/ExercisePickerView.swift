@@ -22,17 +22,23 @@ struct ExercisePickerView: View {
         }
     }
 
-    private var groupedExercises: [(group: MuscleGroup, exercises: [Exercise])] {
+    private struct ExerciseGroup: Identifiable {
+        let group: MuscleGroup
+        let exercises: [Exercise]
+        var id: MuscleGroup { group }
+    }
+
+    private var groupedExercises: [ExerciseGroup] {
         MuscleGroup.allCases.compactMap { group in
             let members = visibleExercises.filter { $0.muscleGroup == group }
-            return members.isEmpty ? nil : (group, members)
+            return members.isEmpty ? nil : ExerciseGroup(group: group, exercises: members)
         }
     }
 
     var body: some View {
         NavigationStack {
             List {
-                ForEach(groupedExercises, id: \.group) { entry in
+                ForEach(groupedExercises) { entry in
                     Section(entry.group.displayName) {
                         ForEach(entry.exercises) { exercise in
                             row(for: exercise)

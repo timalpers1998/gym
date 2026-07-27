@@ -16,8 +16,9 @@ struct WorkoutRowView: View {
                     .foregroundStyle(.secondary)
             }
             HStack(spacing: 12) {
+                let exerciseCount = workout.orderedExercises.count
                 Label(Format.duration(seconds: workout.durationSeconds), systemImage: "clock")
-                Label("\(workout.orderedExercises.count) exercises", systemImage: "dumbbell")
+                Label("\(exerciseCount) exercise\(exerciseCount == 1 ? "" : "s")", systemImage: "dumbbell")
                 if workout.totalVolume > 0 {
                     Label(Format.weight(workout.totalVolume, unit: settings.weightUnit), systemImage: "scalemass")
                 }

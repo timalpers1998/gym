@@ -22,8 +22,9 @@ extension GymSchemaV1 {
             (sets ?? []).filter(\.isCompleted)
         }
 
+        /// Completed working sets only, matching how ProgressCalculator counts.
         var totalVolume: Double {
-            completedSets.reduce(0) { $0 + $1.volume }
+            completedSets.filter { !$0.isWarmup }.reduce(0) { $0 + $1.volume }
         }
 
         init(orderIndex: Int, exercise: Exercise) {

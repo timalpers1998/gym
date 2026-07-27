@@ -9,9 +9,7 @@ struct ActiveWorkoutView: View {
 
     @State private var showingExercisePicker = false
     @State private var showingCancelConfirmation = false
-    @State private var showingFinishDialog = false
-    @State private var showingSaveAsRoutine = false
-    @State private var routineName = ""
+    @State private var showingFinishSheet = false
 
     var body: some View {
         List {
@@ -54,7 +52,7 @@ struct ActiveWorkoutView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Finish") {
-                    showingFinishDialog = true
+                    showingFinishSheet = true
                 }
                 .fontWeight(.semibold)
             }
@@ -77,36 +75,25 @@ struct ActiveWorkoutView: View {
             }
             Button("Keep Going", role: .cancel) {}
         }
-        .confirmationDialog(
-            "Finish workout?",
-            isPresented: $showingFinishDialog,
-            titleVisibility: .visible
-        ) {
-            Button("Finish") {
-                finishWorkout()
-            }
-            if workout.sourceTemplate == nil && !workout.orderedExercises.isEmpty {
-                Button("Finish & Save as Routine") {
-                    routineName = workout.title == "Workout" ? "New Routine" : workout.title
-                    showingSaveAsRoutine = true
+        .sheet(isPresented: $showingFinishSheet) {
+            FinishWorkoutSheet(workout: workout) { saveAsRoutine, routineName in
+                if saveAsRoutine {
+                    let trimmed = routineName.trimmingCharacters(in: .whitespaces)
+                    WorkoutFactory.makeTemplate(
+                        from: workout,
+                        name: trimmed.isEmpty ? "New Routine" : trimmed,
+                        context: context
+                    )
                 }
-            }
-            Button("Keep Going", role: .cancel) {}
-        }
-        .alert("Save as Routine", isPresented: $showingSaveAsRoutine) {
-            TextField("Routine name", text: $routineName)
-            Button("Save & Finish") {
-                let trimmed = routineName.trimmingCharacters(in: .whitespaces)
-                WorkoutFactory.makeTemplate(
-                    from: workout,
-                    name: trimmed.isEmpty ? "New Routine" : trimmed,
-                    context: context
-                )
+                showingFinishSheet = false
                 finishWorkout()
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The exercises and sets from this workout become a reusable routine.")
+        }
+        .onAppear {
+            // Clear a rest timer that expired while another tab was showing.
+            if let end = restTimer.endDate, end <= Date.now {
+                restTimer.finish()
+            }
         }
     }
 
@@ -119,5 +106,67 @@ struct ActiveWorkoutView: View {
         restTimer.skip()
         context.delete(workout)
         try? context.save()
+    }
+}
+
+private struct FinishWorkoutSheet: View {
+    let workout: Workout
+    let onFinish: (_ saveAsRoutine: Bool, _ routineName: String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var saveAsRoutine = false
+    @State private var routineName = ""
+
+    private var canSaveAsRoutine: Bool {
+        workout.sourceTemplate == nil && !workout.orderedExercises.isEmpty
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    LabeledContent(
+                        "Duration",
+                        value: Format.duration(seconds: max(0, Int(Date.now.timeIntervalSince(workout.startDate))))
+                    )
+                    LabeledContent("Completed sets", value: "\(workout.completedSetCount)")
+                }
+
+                if canSaveAsRoutine {
+                    Section {
+                        Toggle("Save as routine", isOn: $saveAsRoutine)
+                        if saveAsRoutine {
+                            TextField("Routine name", text: $routineName)
+                        }
+                    } footer: {
+                        Text("Saves this workout's exercises and sets as a reusable routine.")
+                    }
+                }
+
+                Section {
+                    Button {
+                        onFinish(saveAsRoutine, routineName)
+                    } label: {
+                        Text("Finish Workout")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+            .navigationTitle("Finish Workout")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Keep Going") {
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                routineName = workout.title == "Workout" ? "" : workout.title
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
