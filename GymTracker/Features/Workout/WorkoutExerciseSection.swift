@@ -354,19 +354,12 @@ struct WorkoutExerciseSection: View {
     }
 
     private func deleteSets(at offsets: IndexSet) {
-        let ordered = workoutExercise.orderedSets
-        for index in offsets {
-            context.delete(ordered[index])
-        }
-        let remaining = ordered.enumerated()
-            .filter { !offsets.contains($0.offset) }
-            .map(\.element)
-        for (index, set) in remaining.enumerated() {
-            set.orderIndex = index
-        }
+        WorkoutFactory.deleteSets(at: offsets, from: workoutExercise, context: context)
+        loadEfforts()
     }
 
     private func removeExercise() {
+        WorkoutFactory.deleteEfforts(for: workoutExercise, context: context)
         guard let workout = workoutExercise.workout else {
             context.delete(workoutExercise)
             return

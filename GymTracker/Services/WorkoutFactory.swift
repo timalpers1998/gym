@@ -199,6 +199,43 @@ enum WorkoutFactory {
         try? context.save()
     }
 
+    /// Deletes the given rows of an exercise's set list, keeping recorded
+    /// efforts in lockstep (delete with their set, shift with renumbering).
+    static func deleteSets(at offsets: IndexSet, from workoutExercise: WorkoutExercise, context: ModelContext) {
+        let ordered = workoutExercise.orderedSets
+        let dropped = offsets.compactMap { index in
+            index < ordered.count ? ordered[index] : nil
+        }
+        guard !dropped.isEmpty else { return }
+
+        let exerciseEfforts = efforts(for: workoutExercise, context: context)
+        let droppedIndexes = Set(dropped.map(\.orderIndex))
+        for effort in exerciseEfforts where droppedIndexes.contains(effort.setOrderIndex) {
+            context.delete(effort)
+        }
+        dropped.forEach(context.delete)
+
+        let remaining = ordered.enumerated()
+            .filter { !offsets.contains($0.offset) }
+            .map(\.element)
+        for (index, set) in remaining.enumerated() {
+            if set.orderIndex != index,
+               let effort = exerciseEfforts.first(where: { $0.setOrderIndex == set.orderIndex }) {
+                effort.setOrderIndex = index
+            }
+            set.orderIndex = index
+        }
+        try? context.save()
+    }
+
+    /// Removes the RIR efforts recorded for an exercise this session, e.g.
+    /// when the exercise itself is removed from the workout.
+    static func deleteEfforts(for workoutExercise: WorkoutExercise, context: ModelContext) {
+        for effort in efforts(for: workoutExercise, context: context) {
+            context.delete(effort)
+        }
+    }
+
     /// Deletes a workout together with the RIR efforts recorded for it.
     static func delete(_ workout: Workout, context: ModelContext) {
         let start = workout.startDate
