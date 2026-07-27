@@ -55,6 +55,8 @@ struct ProgressTabView: View {
                 }
             }
 
+            BodyWeightSection()
+
             Section("Recent PRs") {
                 if recentPRs.isEmpty {
                     Text("Personal records appear once you log completed sets with weight.")

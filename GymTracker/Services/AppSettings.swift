@@ -8,6 +8,13 @@ enum WeightUnit: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var displayName: String { rawValue }
+
+    var kilogramsPerUnit: Double {
+        switch self {
+        case .kg: 1
+        case .lb: 0.453_592_37
+        }
+    }
 }
 
 @MainActor
