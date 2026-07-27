@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import UserNotifications
 import UIKit
 
@@ -7,7 +8,11 @@ struct SettingsView: View {
     @Environment(\.openURL) private var openURL
     @Environment(AppSettings.self) private var settings
 
+    @Query(filter: #Predicate<Workout> { $0.endDate != nil }, sort: \Workout.startDate)
+    private var finishedWorkouts: [Workout]
+
     @State private var notificationStatus: UNAuthorizationStatus?
+    @State private var exportURL: URL?
 
     var body: some View {
         @Bindable var settings = settings
@@ -40,7 +45,22 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    LabeledContent("Version", value: "1.0")
+                    if let exportURL {
+                        ShareLink(item: exportURL) {
+                            Label("Export Workout History", systemImage: "square.and.arrow.up")
+                        }
+                    } else {
+                        Label("Export Workout History", systemImage: "square.and.arrow.up")
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Data")
+                } footer: {
+                    Text("Exports every set from \(finishedWorkouts.count) workout\(finishedWorkouts.count == 1 ? "" : "s") as a CSV file.")
+                }
+
+                Section {
+                    LabeledContent("Version", value: "1.1")
                 } footer: {
                     Text("All data is stored on this device.")
                 }
@@ -58,6 +78,7 @@ struct SettingsView: View {
             .task {
                 notificationStatus = await UNUserNotificationCenter.current()
                     .notificationSettings().authorizationStatus
+                exportURL = try? CSVExporter.export(workouts: finishedWorkouts)
             }
         }
     }
