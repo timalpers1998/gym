@@ -13,8 +13,35 @@ final class RestTimerModel {
     private let settings: AppSettings
     private var hasRequestedAuthorization = false
 
+    private enum Keys {
+        static let endDate = "restTimer.endDate"
+        static let totalDuration = "restTimer.totalDuration"
+    }
+
     init(settings: AppSettings) {
         self.settings = settings
+
+        // Restore a timer that was running when the app was killed; the
+        // scheduled notification is still pending, so only UI state is needed.
+        let defaults = UserDefaults.standard
+        if let stored = defaults.object(forKey: Keys.endDate) as? Date, stored > Date.now {
+            endDate = stored
+            totalDuration = defaults.double(forKey: Keys.totalDuration)
+        } else {
+            defaults.removeObject(forKey: Keys.endDate)
+            defaults.removeObject(forKey: Keys.totalDuration)
+        }
+    }
+
+    private func persist() {
+        let defaults = UserDefaults.standard
+        if let endDate {
+            defaults.set(endDate, forKey: Keys.endDate)
+            defaults.set(totalDuration, forKey: Keys.totalDuration)
+        } else {
+            defaults.removeObject(forKey: Keys.endDate)
+            defaults.removeObject(forKey: Keys.totalDuration)
+        }
     }
 
     var isActive: Bool {
@@ -38,6 +65,7 @@ final class RestTimerModel {
         totalDuration = seconds
         let end = Date.now.addingTimeInterval(seconds)
         endDate = end
+        persist()
         Task {
             if !hasRequestedAuthorization {
                 hasRequestedAuthorization = true
@@ -52,6 +80,7 @@ final class RestTimerModel {
         totalDuration += seconds
         let end = current.addingTimeInterval(seconds)
         endDate = end
+        persist()
         Task {
             await NotificationService.scheduleRestDoneNotification(at: end)
         }
@@ -60,6 +89,7 @@ final class RestTimerModel {
     func skip() {
         endDate = nil
         totalDuration = 0
+        persist()
         NotificationService.cancelRestDoneNotification()
     }
 
@@ -68,5 +98,6 @@ final class RestTimerModel {
     func finish() {
         endDate = nil
         totalDuration = 0
+        persist()
     }
 }
