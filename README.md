@@ -12,6 +12,10 @@ A personal iOS workout tracker built with SwiftUI, SwiftData, and Swift Charts.
 
 All data stays on-device (SwiftData). No account, no backend.
 
+## Backup & transfer
+
+Settings → Data → **Back Up All Data** exports everything — workouts, routines, exercises, body weight, effort logs, and settings — as a single JSON file you can save to Files or iCloud Drive. **Restore from Backup** merges such a file back in without deleting anything (entries that already exist are skipped), so it doubles as the way to move to a new phone: back up on the old one, AirDrop or sync the file across, restore on the new one. With a free-team install (7-day signing), keep a recent backup around in case a reinstall clears the app's data.
+
 ## Requirements
 
 - **Xcode 16 or later** (the project uses the Xcode 16 project format with a filesystem-synchronized source folder)
