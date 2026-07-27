@@ -1,6 +1,15 @@
 import SwiftUI
 import SwiftData
 
+/// Plain-value copy of a previous session's set. Snapshotting (instead of
+/// holding SetEntry references) keeps the hints safe to render even if the
+/// source workout is deleted from History mid-session.
+struct LastSetSnapshot {
+    let weight: Double
+    let reps: Int
+    let isCompleted: Bool
+}
+
 struct WorkoutExerciseSection: View {
     let workoutExercise: WorkoutExercise
 
@@ -8,7 +17,7 @@ struct WorkoutExerciseSection: View {
 
     /// The same exercise's sets from the most recent finished workout,
     /// used for the "last time" header line and field placeholders.
-    @State private var lastSets: [SetEntry] = []
+    @State private var lastSets: [LastSetSnapshot] = []
 
     var body: some View {
         Section {
@@ -62,7 +71,7 @@ struct WorkoutExerciseSection: View {
         return "Last: \(sets)"
     }
 
-    private func lastSet(for set: SetEntry) -> SetEntry? {
+    private func lastSet(for set: SetEntry) -> LastSetSnapshot? {
         let index = set.orderIndex
         guard index >= 0 && index < lastSets.count else { return nil }
         return lastSets[index]
@@ -82,7 +91,9 @@ struct WorkoutExerciseSection: View {
                 entry.workout?.endDate != nil && entry.workout !== currentWorkout
             }
             .max { ($0.workout?.startDate ?? .distantPast) < ($1.workout?.startDate ?? .distantPast) }
-        lastSets = previous?.orderedSets ?? []
+        lastSets = (previous?.orderedSets ?? []).map { set in
+            LastSetSnapshot(weight: set.weight, reps: set.reps, isCompleted: set.isCompleted)
+        }
     }
 
     private func deleteSets(at offsets: IndexSet) {

@@ -60,7 +60,10 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    LabeledContent("Version", value: "1.1")
+                    LabeledContent(
+                        "Version",
+                        value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+                    )
                 } footer: {
                     Text("All data is stored on this device.")
                 }

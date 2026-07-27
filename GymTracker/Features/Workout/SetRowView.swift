@@ -4,7 +4,7 @@ import SwiftData
 struct SetRowView: View {
     let set: SetEntry
     /// The corresponding set from the previous session, shown as placeholders.
-    var lastSet: SetEntry? = nil
+    var lastSet: LastSetSnapshot? = nil
 
     @Environment(RestTimerModel.self) private var restTimer
     @Environment(AppSettings.self) private var settings

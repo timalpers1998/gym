@@ -31,8 +31,11 @@ final class RestTimerModel {
             defaults.removeObject(forKey: Keys.endDate)
             defaults.removeObject(forKey: Keys.totalDuration)
             // A Live Activity from a previous run may be lingering in its
-            // stale "Done" state; dismiss it.
+            // stale "Done" state; dismiss it. ActivityKit restores existing
+            // activities asynchronously after launch, so wait briefly before
+            // enumerating them.
             Task {
+                try? await Task.sleep(for: .seconds(2))
                 await RestTimerLiveActivityController.endAll()
             }
         }
