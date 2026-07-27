@@ -3,6 +3,8 @@ import SwiftData
 
 struct SetRowView: View {
     let set: SetEntry
+    /// The corresponding set from the previous session, shown as placeholders.
+    var lastSet: SetEntry? = nil
 
     @Environment(RestTimerModel.self) private var restTimer
     @Environment(AppSettings.self) private var settings
@@ -22,7 +24,7 @@ struct SetRowView: View {
                 .foregroundStyle(set.isWarmup ? Color.orange : Color.secondary)
                 .frame(width: 24)
 
-            TextField("0", text: $weightText)
+            TextField(weightPlaceholder, text: $weightText)
                 .keyboardType(.decimalPad)
                 .focused($focusedField, equals: .weight)
                 .multilineTextAlignment(.center)
@@ -32,7 +34,7 @@ struct SetRowView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            TextField("0", text: $repsText)
+            TextField(repsPlaceholder, text: $repsText)
                 .keyboardType(.numberPad)
                 .focused($focusedField, equals: .reps)
                 .multilineTextAlignment(.center)
@@ -74,6 +76,16 @@ struct SetRowView: View {
         .onChange(of: repsText) { _, newValue in
             set.reps = Int(newValue) ?? 0
         }
+    }
+
+    private var weightPlaceholder: String {
+        guard let lastSet, lastSet.weight > 0 else { return "0" }
+        return Format.editableWeight(lastSet.weight)
+    }
+
+    private var repsPlaceholder: String {
+        guard let lastSet, lastSet.reps > 0 else { return "0" }
+        return "\(lastSet.reps)"
     }
 
     private func toggleCompleted() {
