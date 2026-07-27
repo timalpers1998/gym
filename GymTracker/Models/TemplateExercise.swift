@@ -23,5 +23,11 @@ extension GymSchemaV1 {
             self.exerciseName = exercise.name
             self.exerciseUUID = exercise.uuid
         }
+
+        init(orderIndex: Int, exerciseName: String, exerciseUUID: UUID?) {
+            self.orderIndex = orderIndex
+            self.exerciseName = exerciseName
+            self.exerciseUUID = exerciseUUID
+        }
     }
 }

@@ -1,0 +1,72 @@
+import Foundation
+import Observation
+
+/// App-wide rest timer. The end date is the single source of truth; remaining
+/// time is always computed against the current date, so the countdown stays
+/// correct across backgrounding without a running Timer.
+@MainActor
+@Observable
+final class RestTimerModel {
+    private(set) var endDate: Date? = nil
+    private(set) var totalDuration: TimeInterval = 0
+
+    private let settings: AppSettings
+    private var hasRequestedAuthorization = false
+
+    init(settings: AppSettings) {
+        self.settings = settings
+    }
+
+    var isActive: Bool {
+        guard let endDate else { return false }
+        return endDate > Date.now
+    }
+
+    func remainingSeconds(at date: Date) -> Int {
+        guard let endDate else { return 0 }
+        return max(0, Int(endDate.timeIntervalSince(date).rounded(.up)))
+    }
+
+    func progress(at date: Date) -> Double {
+        guard totalDuration > 0, let endDate else { return 0 }
+        let remaining = max(0, endDate.timeIntervalSince(date))
+        return min(1, max(0, 1 - remaining / totalDuration))
+    }
+
+    func start(duration: Int? = nil) {
+        let seconds = TimeInterval(duration ?? settings.restDurationSeconds)
+        totalDuration = seconds
+        let end = Date.now.addingTimeInterval(seconds)
+        endDate = end
+        Task {
+            if !hasRequestedAuthorization {
+                hasRequestedAuthorization = true
+                await NotificationService.requestAuthorizationIfNeeded()
+            }
+            await NotificationService.scheduleRestDoneNotification(at: end)
+        }
+    }
+
+    func add(seconds: TimeInterval) {
+        guard let current = endDate, current > Date.now else { return }
+        totalDuration += seconds
+        let end = current.addingTimeInterval(seconds)
+        endDate = end
+        Task {
+            await NotificationService.scheduleRestDoneNotification(at: end)
+        }
+    }
+
+    func skip() {
+        endDate = nil
+        totalDuration = 0
+        NotificationService.cancelRestDoneNotification()
+    }
+
+    /// Called when the countdown reaches zero naturally; the notification has
+    /// already fired, so only local state needs clearing.
+    func finish() {
+        endDate = nil
+        totalDuration = 0
+    }
+}
