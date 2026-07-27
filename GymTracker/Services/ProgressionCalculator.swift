@@ -124,7 +124,9 @@ enum ProgressionCalculator {
         kind: ProgressionSuggestion.Kind
     ) -> ProgressionSuggestion? {
         guard lastWeight > 0, lastReps > 0, step > 0 else { return nil }
-        let weight = max(step, (lastWeight * factor / step).rounded() * step)
+        // A coarse step can round the back-off up past the old load; a
+        // "deload" must never suggest more than last time.
+        let weight = min(lastWeight, max(step, (lastWeight * factor / step).rounded() * step))
         return ProgressionSuggestion(
             weight: weight,
             reps: lastReps,

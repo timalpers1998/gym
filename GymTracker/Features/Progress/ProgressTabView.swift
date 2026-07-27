@@ -73,6 +73,7 @@ struct ProgressTabView: View {
                             Text("\(volume.thisWeek)")
                                 .font(.subheadline.bold())
                                 .monospacedDigit()
+                                .frame(width: 28, alignment: .trailing)
                             Text("Ø \(volume.weeklyAverage.formatted(.number.precision(.fractionLength(0...1))))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)

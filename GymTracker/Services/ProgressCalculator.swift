@@ -232,13 +232,29 @@ enum ProgressCalculator {
             }
         }
 
+        // Average over the weeks that actually have history, so a young log
+        // doesn't make the current week look like a 4x spike.
+        var historyWeeks = 4
+        let earliest = entries
+            .compactMap { $0.workout }
+            .filter { $0.endDate != nil }
+            .map(\.startDate)
+            .min()
+        if let earliest,
+           let firstWeek = calendar.dateInterval(of: .weekOfYear, for: earliest)?.start {
+            let weeks = calendar.dateComponents(
+                [.weekOfYear], from: firstWeek, to: currentWeek.start
+            ).weekOfYear ?? 4
+            historyWeeks = min(4, max(1, weeks))
+        }
+
         let groups = Set(thisWeek.keys).union(previousWeeks.keys)
         return groups
             .map { group in
                 MuscleWeekVolume(
                     group: group,
                     thisWeek: thisWeek[group] ?? 0,
-                    weeklyAverage: Double(previousWeeks[group] ?? 0) / 4
+                    weeklyAverage: Double(previousWeeks[group] ?? 0) / Double(historyWeeks)
                 )
             }
             .sorted {

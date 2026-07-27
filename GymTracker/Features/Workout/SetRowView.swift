@@ -199,12 +199,20 @@ struct SetRowView: View {
         .padding(.leading, 34)
     }
 
+    /// Placeholders mirror exactly what the checkmark would adopt: the
+    /// suggested target when one is shown, otherwise last session's numbers.
     private var weightPlaceholder: String {
+        if let suggestion, suggestion.weight > 0, !set.isCompleted {
+            return Format.editableWeight(suggestion.weight)
+        }
         guard let lastSet, lastSet.weight > 0 else { return "0" }
         return Format.editableWeight(lastSet.weight)
     }
 
     private var repsPlaceholder: String {
+        if let suggestion, suggestion.reps > 0, !set.isCompleted {
+            return "\(suggestion.reps)"
+        }
         guard let lastSet, lastSet.reps > 0 else { return "0" }
         return "\(lastSet.reps)"
     }

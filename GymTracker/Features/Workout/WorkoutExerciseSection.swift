@@ -29,6 +29,9 @@ struct WorkoutExerciseSection: View {
     /// Start of the most recent previous session with this exercise.
     @State private var lastWorkoutDate: Date? = nil
 
+    /// Start of the most recent finished workout overall.
+    @State private var overallLastWorkoutDate: Date? = nil
+
     /// True when the best est. 10RM has been flat or falling for three sessions.
     @State private var stalled = false
 
@@ -213,8 +216,8 @@ struct WorkoutExerciseSection: View {
               baseline.isCompleted, !baseline.isWarmup, baseline.reps > 0 else { return nil }
         let step = settings.progressionStep(for: workoutExercise.exerciseUUID)
 
-        if let lastDate = lastWorkoutDate,
-           Date.now.timeIntervalSince(lastDate) > 14 * 86_400,
+        if let overall = overallLastWorkoutDate,
+           Date.now.timeIntervalSince(overall) > 14 * 86_400,
            let comeback = ProgressionCalculator.comeback(
                lastWeight: baseline.weight, lastReps: baseline.reps, step: step
            ) {
@@ -227,13 +230,15 @@ struct WorkoutExerciseSection: View {
             return deload
         }
 
-        // An easy last session (3+ reps in reserve) earns a double step.
-        let increment = (baseline.rir ?? 0) >= 3 ? step * 2 : step
+        // An easy last session (3+ reps in reserve) skips a progression step:
+        // suggest as if last session had already been one step heavier.
+        let allow = allowIncrease(before: set)
+        let easy = allow && (baseline.rir ?? 0) >= 3 && baseline.weight > 0
         return ProgressionCalculator.nextProgression(
-            lastWeight: baseline.weight,
+            lastWeight: easy ? baseline.weight + step : baseline.weight,
             lastReps: baseline.reps,
-            increment: increment,
-            allowIncrease: allowIncrease(before: set)
+            increment: step,
+            allowIncrease: allow
         )
     }
 
@@ -294,15 +299,25 @@ struct WorkoutExerciseSection: View {
             )
         }
 
-        // Plateau: best est. 10RM flat or falling across three sessions. The
-        // last guard skips detection right after a big back-off, so a deload
-        // isn't suggested again while rebuilding.
+        // Plateau: best est. 10RM flat (within tolerance) across three
+        // sessions. The 0.92 floors on BOTH transitions keep a single heavy
+        // outlier day or a recent deload from reading as a plateau.
         let bests = history.prefix(3).map(sessionBestTenRM)
         stalled = bests.count >= 3
             && bests.allSatisfy { $0 > 0 }
             && bests[0] <= bests[1] + 0.25
             && bests[1] <= bests[2] + 0.25
             && bests[0] >= bests[1] * 0.92
+            && bests[1] >= bests[2] * 0.92
+
+        // Overall last training day (any exercise) drives the comeback gate,
+        // so an accessory rotated on a long cycle isn't treated as a layoff.
+        var overallDescriptor = FetchDescriptor<Workout>(
+            predicate: #Predicate<Workout> { $0.endDate != nil },
+            sortBy: [SortDescriptor(\.startDate, order: .reverse)]
+        )
+        overallDescriptor.fetchLimit = 1
+        overallLastWorkoutDate = (try? context.fetch(overallDescriptor))?.first?.startDate
     }
 
     private func sessionBestTenRM(_ entry: WorkoutExercise) -> Double {
