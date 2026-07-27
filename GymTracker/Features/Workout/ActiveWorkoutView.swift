@@ -77,6 +77,7 @@ struct ActiveWorkoutView: View {
         }
         .sheet(isPresented: $showingFinishSheet) {
             FinishWorkoutSheet(workout: workout) { saveAsRoutine, routineName in
+                guard workout.isActive else { return }
                 if saveAsRoutine {
                     let trimmed = routineName.trimmingCharacters(in: .whitespaces)
                     WorkoutFactory.makeTemplate(
