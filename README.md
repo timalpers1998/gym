@@ -41,6 +41,8 @@ xcodebuild -project GymTracker.xcodeproj -scheme GymTracker \
 
 ## Notes
 
+- **Free-team signing quirks (device installs):** if signing complains about the App Group capability, open *Signing & Capabilities* once for both the app and widget targets so Xcode registers `group.com.example.GymTracker`; if the group or bundle ID is reported as unavailable, rename both to something unique (e.g. `com.yourname.GymTracker` / `group.com.yourname.GymTracker` — keep the widget's bundle ID prefixed by the app's).
+
 - **Weight units:** the kg/lb setting is a display label only — weights are stored exactly as entered and are not converted when you switch units.
 - **Notifications:** permission is requested the first time a rest timer starts. If you decline, the in-app countdown still works.
 - **Troubleshooting:** if the project ever fails to open in an older Xcode, either upgrade to Xcode 16+, or create a new iOS App project named `GymTracker` in Xcode and drag the `GymTracker/` folder into it — all source files live there.

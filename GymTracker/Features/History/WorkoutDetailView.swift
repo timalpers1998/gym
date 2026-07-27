@@ -85,6 +85,7 @@ struct WorkoutDetailView: View {
             Button("Delete", role: .destructive) {
                 context.delete(workout)
                 try? context.save()
+                WidgetDataStore.refresh(context: context)
                 dismiss()
             }
             Button("Cancel", role: .cancel) {}

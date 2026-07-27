@@ -134,5 +134,6 @@ enum WorkoutFactory {
         workout.endDate = end
         workout.durationSeconds = max(0, Int(end.timeIntervalSince(workout.startDate)))
         try? context.save()
+        WidgetDataStore.refresh(context: context)
     }
 }
