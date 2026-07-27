@@ -25,6 +25,11 @@ final class AppSettings {
         didSet { UserDefaults.standard.set(weightUnitRaw, forKey: Keys.weightUnit) }
     }
 
+    /// Bar weight for the plate calculator, in the display unit.
+    var barWeight: Double {
+        didSet { UserDefaults.standard.set(barWeight, forKey: Keys.barWeight) }
+    }
+
     var weightUnit: WeightUnit {
         get { WeightUnit(rawValue: weightUnitRaw) ?? .kg }
         set { weightUnitRaw = newValue.rawValue }
@@ -34,6 +39,7 @@ final class AppSettings {
         static let restDuration = "settings.restDurationSeconds"
         static let autoStart = "settings.autoStartRestTimer"
         static let weightUnit = "settings.weightUnit"
+        static let barWeight = "settings.barWeight"
     }
 
     init() {
@@ -41,6 +47,9 @@ final class AppSettings {
         let storedRest = defaults.integer(forKey: Keys.restDuration)
         restDurationSeconds = storedRest > 0 ? storedRest : 90
         autoStartRestTimer = defaults.object(forKey: Keys.autoStart) as? Bool ?? true
-        weightUnitRaw = defaults.string(forKey: Keys.weightUnit) ?? WeightUnit.kg.rawValue
+        let storedUnit = defaults.string(forKey: Keys.weightUnit) ?? WeightUnit.kg.rawValue
+        weightUnitRaw = storedUnit
+        let storedBar = defaults.double(forKey: Keys.barWeight)
+        barWeight = storedBar > 0 ? storedBar : (storedUnit == WeightUnit.lb.rawValue ? 45 : 20)
     }
 }

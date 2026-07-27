@@ -11,6 +11,7 @@ struct SetRowView: View {
 
     @State private var repsText = ""
     @State private var weightText = ""
+    @State private var showingPlateCalculator = false
     @FocusState private var focusedField: Field?
 
     private enum Field {
@@ -65,6 +66,14 @@ struct SetRowView: View {
                     systemImage: "flame"
                 )
             }
+            Button {
+                showingPlateCalculator = true
+            } label: {
+                Label("Plate Calculator", systemImage: "circle.circle")
+            }
+        }
+        .sheet(isPresented: $showingPlateCalculator) {
+            PlateCalculatorView(initialWeight: set.weight > 0 ? set.weight : (lastSet?.weight ?? 0))
         }
         .onAppear {
             weightText = set.weight > 0 ? Format.editableWeight(set.weight) : ""
