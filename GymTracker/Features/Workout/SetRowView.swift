@@ -5,6 +5,8 @@ struct SetRowView: View {
     let set: SetEntry
     /// The corresponding set from the previous session, shown as placeholders.
     var lastSet: LastSetSnapshot? = nil
+    /// Recommended next target; non-nil only for the current pending set.
+    var suggestion: ProgressionSuggestion? = nil
 
     @Environment(RestTimerModel.self) private var restTimer
     @Environment(AppSettings.self) private var settings
@@ -19,6 +21,44 @@ struct SetRowView: View {
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            fieldsRow
+            if let suggestion, !set.isCompleted {
+                suggestionButton(suggestion)
+            }
+        }
+        .listRowBackground(set.isCompleted ? Color.green.opacity(0.08) : Color.clear)
+        .contextMenu {
+            Button {
+                set.isWarmup.toggle()
+            } label: {
+                Label(
+                    set.isWarmup ? "Mark as Working Set" : "Mark as Warm-up",
+                    systemImage: "flame"
+                )
+            }
+            Button {
+                showingPlateCalculator = true
+            } label: {
+                Label("Plate Calculator", systemImage: "circle.circle")
+            }
+        }
+        .sheet(isPresented: $showingPlateCalculator) {
+            PlateCalculatorView(initialWeight: set.weight > 0 ? set.weight : (lastSet?.weight ?? 0))
+        }
+        .onAppear {
+            weightText = set.weight > 0 ? Format.editableWeight(set.weight) : ""
+            repsText = set.reps > 0 ? "\(set.reps)" : ""
+        }
+        .onChange(of: weightText) { _, newValue in
+            set.weight = Format.parseWeight(newValue)
+        }
+        .onChange(of: repsText) { _, newValue in
+            set.reps = Int(newValue) ?? 0
+        }
+    }
+
+    private var fieldsRow: some View {
         HStack(spacing: 10) {
             Text(set.isWarmup ? "W" : "\(set.orderIndex + 1)")
                 .font(.caption.monospacedDigit().bold())
@@ -56,35 +96,35 @@ struct SetRowView: View {
             }
             .buttonStyle(.borderless)
         }
-        .listRowBackground(set.isCompleted ? Color.green.opacity(0.08) : Color.clear)
-        .contextMenu {
-            Button {
-                set.isWarmup.toggle()
-            } label: {
-                Label(
-                    set.isWarmup ? "Mark as Working Set" : "Mark as Warm-up",
-                    systemImage: "flame"
-                )
+    }
+
+    /// The tappable target chip: fills the fields with the recommendation.
+    private func suggestionButton(_ suggestion: ProgressionSuggestion) -> some View {
+        Button {
+            weightText = suggestion.weight > 0 ? Format.editableWeight(suggestion.weight) : ""
+            repsText = "\(suggestion.reps)"
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "scope")
+                    .font(.caption)
+                if suggestion.weight > 0 {
+                    Text("\(Format.plainWeight(suggestion.weight)) \(settings.weightUnit.displayName) × \(suggestion.reps)")
+                        .font(.caption.bold())
+                    Text("10RM \(Format.plainWeight((suggestion.estTenRM * 10).rounded() / 10))")
+                        .font(.caption2)
+                        .opacity(0.7)
+                } else {
+                    Text("× \(suggestion.reps)")
+                        .font(.caption.bold())
+                }
             }
-            Button {
-                showingPlateCalculator = true
-            } label: {
-                Label("Plate Calculator", systemImage: "circle.circle")
-            }
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Color.accentColor.opacity(0.12), in: Capsule())
         }
-        .sheet(isPresented: $showingPlateCalculator) {
-            PlateCalculatorView(initialWeight: set.weight > 0 ? set.weight : (lastSet?.weight ?? 0))
-        }
-        .onAppear {
-            weightText = set.weight > 0 ? Format.editableWeight(set.weight) : ""
-            repsText = set.reps > 0 ? "\(set.reps)" : ""
-        }
-        .onChange(of: weightText) { _, newValue in
-            set.weight = Format.parseWeight(newValue)
-        }
-        .onChange(of: repsText) { _, newValue in
-            set.reps = Int(newValue) ?? 0
-        }
+        .buttonStyle(.borderless)
+        .padding(.leading, 34)
     }
 
     private var weightPlaceholder: String {

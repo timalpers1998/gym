@@ -41,9 +41,25 @@ final class AppSettings {
         didSet { UserDefaults.standard.set(healthSyncEnabled, forKey: HealthService.enabledKey) }
     }
 
+    /// Per-exercise progression step overrides, keyed by exercise UUID string,
+    /// in the display unit. Missing key = the unit's standard barbell step.
+    var progressionSteps: [String: Double] {
+        didSet { UserDefaults.standard.set(progressionSteps, forKey: Keys.progressionSteps) }
+    }
+
     var weightUnit: WeightUnit {
         get { WeightUnit(rawValue: weightUnitRaw) ?? .kg }
         set { weightUnitRaw = newValue.rawValue }
+    }
+
+    func progressionStep(for uuid: UUID?) -> Double {
+        let fallback: Double = weightUnit == .lb ? 5 : 2.5
+        guard let uuid else { return fallback }
+        return progressionSteps[uuid.uuidString] ?? fallback
+    }
+
+    func setProgressionStep(_ value: Double, for uuid: UUID) {
+        progressionSteps[uuid.uuidString] = value
     }
 
     private enum Keys {
@@ -51,6 +67,7 @@ final class AppSettings {
         static let autoStart = "settings.autoStartRestTimer"
         static let weightUnit = "settings.weightUnit"
         static let barWeight = "settings.barWeight"
+        static let progressionSteps = "settings.progressionSteps"
     }
 
     init() {
@@ -66,5 +83,6 @@ final class AppSettings {
             barWeight = storedUnit == WeightUnit.lb.rawValue ? 45 : 20
         }
         healthSyncEnabled = defaults.bool(forKey: HealthService.enabledKey)
+        progressionSteps = defaults.dictionary(forKey: Keys.progressionSteps) as? [String: Double] ?? [:]
     }
 }

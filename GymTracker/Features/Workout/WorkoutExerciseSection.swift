@@ -8,12 +8,14 @@ struct LastSetSnapshot {
     let weight: Double
     let reps: Int
     let isCompleted: Bool
+    let isWarmup: Bool
 }
 
 struct WorkoutExerciseSection: View {
     let workoutExercise: WorkoutExercise
 
     @Environment(\.modelContext) private var context
+    @Environment(AppSettings.self) private var settings
 
     /// The same exercise's sets from the most recent finished workout,
     /// used for the "last time" header line and field placeholders.
@@ -22,7 +24,7 @@ struct WorkoutExerciseSection: View {
     var body: some View {
         Section {
             ForEach(workoutExercise.orderedSets) { set in
-                SetRowView(set: set, lastSet: lastSet(for: set))
+                SetRowView(set: set, lastSet: lastSet(for: set), suggestion: suggestion(for: set))
             }
             .onDelete { offsets in
                 deleteSets(at: offsets)
@@ -47,6 +49,9 @@ struct WorkoutExerciseSection: View {
                 }
                 Spacer()
                 Menu {
+                    if let uuid = workoutExercise.exerciseUUID {
+                        progressionStepPicker(uuid: uuid)
+                    }
                     Button(role: .destructive) {
                         removeExercise()
                     } label: {
@@ -77,6 +82,56 @@ struct WorkoutExerciseSection: View {
         return lastSets[index]
     }
 
+    private func progressionStepPicker(uuid: UUID) -> some View {
+        let choices: [Double] = settings.weightUnit == .lb
+            ? [1, 2.5, 5, 10]
+            : [0.5, 1, 1.25, 2.5, 5]
+        return Picker(selection: Binding(
+            get: { settings.progressionStep(for: uuid) },
+            set: { settings.setProgressionStep($0, for: uuid) }
+        )) {
+            ForEach(choices, id: \.self) { step in
+                Text("\(Format.plainWeight(step)) \(settings.weightUnit.displayName)").tag(step)
+            }
+        } label: {
+            Label("Progression Step", systemImage: "chart.line.uptrend.xyaxis")
+        }
+        .pickerStyle(.menu)
+    }
+
+    /// Target for the next pending working set: the smallest estimated-10RM
+    /// increase over last session's corresponding set. Other rows get nil.
+    private func suggestion(for set: SetEntry) -> ProgressionSuggestion? {
+        guard !set.isCompleted, !set.isWarmup else { return nil }
+        guard let current = workoutExercise.orderedSets.first(where: { !$0.isCompleted && !$0.isWarmup }),
+              current === set else { return nil }
+        guard let baseline = lastSet(for: set),
+              baseline.isCompleted, !baseline.isWarmup, baseline.reps > 0 else { return nil }
+        return ProgressionCalculator.nextProgression(
+            lastWeight: baseline.weight,
+            lastReps: baseline.reps,
+            increment: settings.progressionStep(for: workoutExercise.exerciseUUID),
+            allowIncrease: allowIncrease(before: set)
+        )
+    }
+
+    /// A completed set this session that fell short of its own last-session
+    /// baseline holds the next target at last session's numbers.
+    private func allowIncrease(before set: SetEntry) -> Bool {
+        let previous = workoutExercise.orderedSets
+            .filter { $0.isCompleted && !$0.isWarmup && $0.orderIndex < set.orderIndex }
+            .max { $0.orderIndex < $1.orderIndex }
+        guard let previous,
+              let baseline = lastSet(for: previous),
+              baseline.isCompleted, !baseline.isWarmup, baseline.reps > 0 else { return true }
+        if baseline.weight <= 0 {
+            return previous.reps >= baseline.reps
+        }
+        let achieved = ProgressionCalculator.estimatedTenRepMax(weight: previous.weight, reps: previous.reps)
+        let target = ProgressionCalculator.estimatedTenRepMax(weight: baseline.weight, reps: baseline.reps)
+        return achieved >= target - 0.05
+    }
+
     private func loadLastSets() {
         guard let uuid = workoutExercise.exerciseUUID else { return }
         let id: UUID? = uuid
@@ -92,7 +147,12 @@ struct WorkoutExerciseSection: View {
             }
             .max { ($0.workout?.startDate ?? .distantPast) < ($1.workout?.startDate ?? .distantPast) }
         lastSets = (previous?.orderedSets ?? []).map { set in
-            LastSetSnapshot(weight: set.weight, reps: set.reps, isCompleted: set.isCompleted)
+            LastSetSnapshot(
+                weight: set.weight,
+                reps: set.reps,
+                isCompleted: set.isCompleted,
+                isWarmup: set.isWarmup
+            )
         }
     }
 
