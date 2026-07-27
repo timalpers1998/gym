@@ -3,6 +3,7 @@ import UserNotifications
 
 struct RootTabView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var context
     @State private var router = AppRouter()
 
     var body: some View {
@@ -43,6 +44,7 @@ struct RootTabView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+                WidgetDataStore.refresh(context: context)
             }
         }
     }

@@ -13,8 +13,9 @@ enum ModelContainerFactory {
             )
         } catch {
             fatalError(
-                "Failed to create ModelContainer: \(error). "
-                + "If the schema changed during development, delete the app from the device/simulator and reinstall."
+                "GymTracker couldn't open its database: \(error). "
+                + "Try relaunching; if this persists, reinstall the app "
+                + "(a CSV export from Settings is the data backstop)."
             )
         }
     }

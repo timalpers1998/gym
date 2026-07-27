@@ -60,8 +60,11 @@ final class AppSettings {
         autoStartRestTimer = defaults.object(forKey: Keys.autoStart) as? Bool ?? true
         let storedUnit = defaults.string(forKey: Keys.weightUnit) ?? WeightUnit.kg.rawValue
         weightUnitRaw = storedUnit
-        let storedBar = defaults.double(forKey: Keys.barWeight)
-        barWeight = storedBar > 0 ? storedBar : (storedUnit == WeightUnit.lb.rawValue ? 45 : 20)
+        if defaults.object(forKey: Keys.barWeight) != nil {
+            barWeight = defaults.double(forKey: Keys.barWeight)
+        } else {
+            barWeight = storedUnit == WeightUnit.lb.rawValue ? 45 : 20
+        }
         healthSyncEnabled = defaults.bool(forKey: HealthService.enabledKey)
     }
 }

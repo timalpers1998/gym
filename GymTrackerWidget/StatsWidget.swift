@@ -16,9 +16,21 @@ struct StatsProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<StatsEntry>) -> Void) {
-        // The app reloads timelines whenever the data changes.
-        let entry = StatsEntry(date: Date.now, summary: loadSummary())
-        completion(Timeline(entries: [entry], policy: .never))
+        // The app reloads timelines whenever the data changes; the .after
+        // policy additionally re-renders at the week rollover so "This Week"
+        // can't stay stale if the app isn't opened.
+        let weekInterval = Calendar.current.dateInterval(of: .weekOfYear, for: Date.now)
+
+        var summary = loadSummary()
+        if var stale = summary, let weekInterval, stale.generatedAt < weekInterval.start {
+            stale.weekCount = 0
+            stale.weekDays = [Bool](repeating: false, count: 7)
+            summary = stale
+        }
+
+        let entry = StatsEntry(date: Date.now, summary: summary)
+        let policy: TimelineReloadPolicy = weekInterval.map { .after($0.end) } ?? .never
+        completion(Timeline(entries: [entry], policy: policy))
     }
 
     private func loadSummary() -> WidgetSummary? {

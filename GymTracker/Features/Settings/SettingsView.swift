@@ -60,7 +60,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Apple Health")
                 } footer: {
-                    Text("Finished workouts are saved as strength training and body weight entries as weight samples. Manage access in the Health app.")
+                    Text("Finished workouts are saved as strength training and body weight entries as weight samples. Manage access in the Health app. Deleting a workout here does not remove it from Health.")
                 }
 
                 Section {

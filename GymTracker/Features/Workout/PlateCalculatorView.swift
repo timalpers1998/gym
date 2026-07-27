@@ -16,7 +16,9 @@ struct PlateCalculatorView: View {
     }
 
     private var targetWeight: Double {
-        Format.parseWeight(weightText)
+        // Clamped so absurd input can't spin the greedy loop or spawn
+        // thousands of plate views.
+        min(Format.parseWeight(weightText), 999)
     }
 
     private var breakdown: (plates: [Double], remainder: Double)? {
@@ -112,14 +114,20 @@ struct PlateCalculatorView: View {
     }
 
     private func plateRow(_ plates: [Double]) -> some View {
-        HStack(spacing: 4) {
-            ForEach(Array(plates.enumerated()), id: \.offset) { _, plate in
+        let visible = Array(plates.prefix(10))
+        return HStack(spacing: 4) {
+            ForEach(Array(visible.enumerated()), id: \.offset) { _, plate in
                 let scale = plateScale(plate)
                 Text(Format.plainWeight(plate))
                     .font(.caption2.bold())
                     .foregroundStyle(.white)
                     .frame(width: 34, height: 30 + 50 * scale)
                     .background(plateColor(plate), in: RoundedRectangle(cornerRadius: 6))
+            }
+            if plates.count > visible.count {
+                Text("+\(plates.count - visible.count)")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
             }
             Spacer()
         }

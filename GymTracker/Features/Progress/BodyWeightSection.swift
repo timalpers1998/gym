@@ -30,12 +30,13 @@ struct BodyWeightSection: View {
 
     private var latestEntry: BodyWeightEntry? { entries.first }
 
-    private var thirtyDayDelta: Double? {
+    private var recentDelta: (value: Double, days: Int)? {
         guard let latest = latestEntry,
               let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: latest.date),
               let reference = entries.first(where: { $0.date <= cutoff })
         else { return nil }
-        return display(latest.weightKg) - display(reference.weightKg)
+        let days = Calendar.current.dateComponents([.day], from: reference.date, to: latest.date).day ?? 30
+        return (display(latest.weightKg) - display(reference.weightKg), days)
     }
 
     private var chartEntries: [BodyWeightEntry] {
@@ -56,8 +57,8 @@ struct BodyWeightSection: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(Format.weight(display(latest.weightKg), unit: unit))
                             .font(.title3.bold())
-                        if let delta = thirtyDayDelta {
-                            Text("\(delta >= 0 ? "+" : "")\(Format.plainWeight(delta)) \(unit.displayName) in 30 days")
+                        if let delta = recentDelta {
+                            Text("\(delta.value >= 0 ? "+" : "")\(Format.plainWeight(delta.value)) \(unit.displayName) in \(delta.days) days")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else {
@@ -79,24 +80,30 @@ struct BodyWeightSection: View {
                 .controlSize(.small)
             }
 
-            if chartEntries.count >= 2 {
-                let values = chartEntries.map { display($0.weightKg) }
-                let lower = (values.min() ?? 0) * 0.98
-                let upper = (values.max() ?? 1) * 1.02
-                Chart(chartEntries) { entry in
-                    LineMark(
-                        x: .value("Date", entry.date),
-                        y: .value("Weight", display(entry.weightKg))
-                    )
-                    .interpolationMethod(.monotone)
-                    PointMark(
-                        x: .value("Date", entry.date),
-                        y: .value("Weight", display(entry.weightKg))
-                    )
+            if entries.count >= 2 {
+                if chartEntries.count >= 2 {
+                    let values = chartEntries.map { display($0.weightKg) }
+                    let lower = (values.min() ?? 0) * 0.98
+                    let upper = (values.max() ?? 1) * 1.02
+                    Chart(chartEntries) { entry in
+                        LineMark(
+                            x: .value("Date", entry.date),
+                            y: .value("Weight", display(entry.weightKg))
+                        )
+                        .interpolationMethod(.monotone)
+                        PointMark(
+                            x: .value("Date", entry.date),
+                            y: .value("Weight", display(entry.weightKg))
+                        )
+                    }
+                    .chartYScale(domain: lower...upper)
+                    .frame(height: 160)
+                    .padding(.vertical, 4)
+                } else {
+                    Text("No entries in this range.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .chartYScale(domain: lower...upper)
-                .frame(height: 160)
-                .padding(.vertical, 4)
 
                 Picker("Range", selection: $range) {
                     ForEach(ChartRange.allCases) { range in
