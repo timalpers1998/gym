@@ -47,6 +47,12 @@ final class AppSettings {
         didSet { UserDefaults.standard.set(progressionSteps, forKey: Keys.progressionSteps) }
     }
 
+    /// Per-exercise rest durations in seconds, keyed by exercise UUID string.
+    /// Missing key = the global default.
+    var restDurationOverrides: [String: Int] {
+        didSet { UserDefaults.standard.set(restDurationOverrides, forKey: Keys.restDurationOverrides) }
+    }
+
     var weightUnit: WeightUnit {
         get { WeightUnit(rawValue: weightUnitRaw) ?? .kg }
         set { weightUnitRaw = newValue.rawValue }
@@ -62,12 +68,28 @@ final class AppSettings {
         progressionSteps[uuid.uuidString] = value
     }
 
+    func restDuration(for uuid: UUID?) -> Int {
+        guard let uuid, let stored = restDurationOverrides[uuid.uuidString], stored > 0 else {
+            return restDurationSeconds
+        }
+        return stored
+    }
+
+    func setRestDuration(_ seconds: Int?, for uuid: UUID) {
+        if let seconds, seconds > 0 {
+            restDurationOverrides[uuid.uuidString] = seconds
+        } else {
+            restDurationOverrides.removeValue(forKey: uuid.uuidString)
+        }
+    }
+
     private enum Keys {
         static let restDuration = "settings.restDurationSeconds"
         static let autoStart = "settings.autoStartRestTimer"
         static let weightUnit = "settings.weightUnit"
         static let barWeight = "settings.barWeight"
         static let progressionSteps = "settings.progressionSteps"
+        static let restDurationOverrides = "settings.restDurationOverrides"
     }
 
     init() {
@@ -84,5 +106,6 @@ final class AppSettings {
         }
         healthSyncEnabled = defaults.bool(forKey: HealthService.enabledKey)
         progressionSteps = defaults.dictionary(forKey: Keys.progressionSteps) as? [String: Double] ?? [:]
+        restDurationOverrides = defaults.dictionary(forKey: Keys.restDurationOverrides) as? [String: Int] ?? [:]
     }
 }

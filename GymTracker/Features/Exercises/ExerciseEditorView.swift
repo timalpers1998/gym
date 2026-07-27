@@ -4,6 +4,8 @@ import SwiftData
 /// Creates a custom exercise (exercise == nil) or edits an existing one.
 struct ExerciseEditorView: View {
     let exercise: Exercise?
+    /// Pre-fills the name when creating from a search with no matches.
+    var initialName: String = ""
     var onSave: ((Exercise) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
@@ -58,6 +60,8 @@ struct ExerciseEditorView: View {
                     muscleGroup = exercise.muscleGroup
                     equipment = exercise.equipment
                     notes = exercise.notes
+                } else if name.isEmpty {
+                    name = initialName.trimmingCharacters(in: .whitespaces)
                 }
             }
         }

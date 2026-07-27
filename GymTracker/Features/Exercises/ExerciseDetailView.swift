@@ -90,13 +90,14 @@ struct ExerciseDetailView: View {
             if !recentEntries.isEmpty {
                 Section("Recent Workouts") {
                     ForEach(recentEntries) { entry in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(entry.workout?.startDate.formatted(.dateTime.weekday().day().month().year()) ?? "")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(setsSummary(for: entry))
-                                .font(.subheadline)
-                                .monospacedDigit()
+                        if let workout = entry.workout {
+                            NavigationLink {
+                                WorkoutDetailView(workout: workout)
+                            } label: {
+                                entryRow(entry)
+                            }
+                        } else {
+                            entryRow(entry)
                         }
                     }
                 }
@@ -151,6 +152,17 @@ struct ExerciseDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Past workouts keep their logged sets. Consider archiving instead to hide it from pickers.")
+        }
+    }
+
+    private func entryRow(_ entry: WorkoutExercise) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(entry.workout?.startDate.formatted(.dateTime.weekday().day().month().year()) ?? "")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(setsSummary(for: entry))
+                .font(.subheadline)
+                .monospacedDigit()
         }
     }
 

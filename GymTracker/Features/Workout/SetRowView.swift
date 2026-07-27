@@ -142,11 +142,35 @@ struct SetRowView: View {
             set.isCompleted = false
             set.completedAt = nil
         } else {
+            adoptFallbackValuesIfEmpty()
             set.isCompleted = true
             set.completedAt = Date.now
             focusedField = nil
             if settings.autoStartRestTimer && !set.isWarmup {
-                restTimer.start()
+                restTimer.start(duration: settings.restDuration(for: set.workoutExercise?.exerciseUUID))
+            }
+        }
+    }
+
+    /// Completing an untouched row logs the shown target/last-time numbers
+    /// instead of a meaningless 0 × 0 that would drop out of all stats.
+    private func adoptFallbackValuesIfEmpty() {
+        if set.weight <= 0 {
+            if let suggestion, suggestion.weight > 0 {
+                set.weight = suggestion.weight
+                weightText = Format.editableWeight(suggestion.weight)
+            } else if let lastSet, lastSet.weight > 0 {
+                set.weight = lastSet.weight
+                weightText = Format.editableWeight(lastSet.weight)
+            }
+        }
+        if set.reps <= 0 {
+            if let suggestion, suggestion.reps > 0 {
+                set.reps = suggestion.reps
+                repsText = "\(suggestion.reps)"
+            } else if let lastSet, lastSet.reps > 0 {
+                set.reps = lastSet.reps
+                repsText = "\(lastSet.reps)"
             }
         }
     }

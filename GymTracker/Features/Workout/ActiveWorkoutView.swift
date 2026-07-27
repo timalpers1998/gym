@@ -39,11 +39,6 @@ struct ActiveWorkoutView: View {
                 }
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            if restTimer.endDate != nil {
-                RestTimerBar()
-            }
-        }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button("Cancel", role: .destructive) {
@@ -76,7 +71,7 @@ struct ActiveWorkoutView: View {
             Button("Keep Going", role: .cancel) {}
         }
         .sheet(isPresented: $showingFinishSheet) {
-            FinishWorkoutSheet(workout: workout) { saveAsRoutine, routineName in
+            FinishWorkoutSheet(workout: workout) { saveAsRoutine, routineName, removeIncomplete in
                 guard workout.isActive else { return }
                 if saveAsRoutine {
                     let trimmed = routineName.trimmingCharacters(in: .whitespaces)
@@ -87,7 +82,7 @@ struct ActiveWorkoutView: View {
                     )
                 }
                 showingFinishSheet = false
-                finishWorkout()
+                finishWorkout(removeIncomplete: removeIncomplete)
             }
         }
         .onAppear {
@@ -98,8 +93,11 @@ struct ActiveWorkoutView: View {
         }
     }
 
-    private func finishWorkout() {
+    private func finishWorkout(removeIncomplete: Bool) {
         restTimer.skip()
+        if removeIncomplete {
+            WorkoutFactory.removeIncompleteSets(in: workout, context: context)
+        }
         WorkoutFactory.finish(workout, context: context)
         let start = workout.startDate
         let end = workout.endDate ?? Date.now
@@ -117,15 +115,23 @@ struct ActiveWorkoutView: View {
 
 private struct FinishWorkoutSheet: View {
     let workout: Workout
-    let onFinish: (_ saveAsRoutine: Bool, _ routineName: String) -> Void
+    let onFinish: (_ saveAsRoutine: Bool, _ routineName: String, _ removeIncomplete: Bool) -> Void
 
     @Environment(\.dismiss) private var dismiss
 
     @State private var saveAsRoutine = false
     @State private var routineName = ""
+    @State private var removeIncomplete = true
 
     private var canSaveAsRoutine: Bool {
         workout.sourceTemplate == nil && !workout.orderedExercises.isEmpty
+    }
+
+    private var pendingSetCount: Int {
+        workout.orderedExercises
+            .flatMap { $0.orderedSets }
+            .filter { !$0.isCompleted }
+            .count
     }
 
     var body: some View {
@@ -137,6 +143,15 @@ private struct FinishWorkoutSheet: View {
                         value: Format.duration(seconds: max(0, Int(Date.now.timeIntervalSince(workout.startDate))))
                     )
                     LabeledContent("Completed sets", value: "\(workout.completedSetCount)")
+                }
+
+                if pendingSetCount > 0 {
+                    Section {
+                        LabeledContent("Not completed", value: "\(pendingSetCount) sets")
+                        Toggle("Remove incomplete sets", isOn: $removeIncomplete)
+                    } footer: {
+                        Text("Sets you never ticked off are dropped from the saved workout.")
+                    }
                 }
 
                 if canSaveAsRoutine {
@@ -152,7 +167,7 @@ private struct FinishWorkoutSheet: View {
 
                 Section {
                     Button {
-                        onFinish(saveAsRoutine, routineName)
+                        onFinish(saveAsRoutine, routineName, pendingSetCount > 0 && removeIncomplete)
                     } label: {
                         Text("Finish Workout")
                             .fontWeight(.semibold)

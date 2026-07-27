@@ -51,7 +51,27 @@ struct WorkoutExerciseSection: View {
                 Menu {
                     if let uuid = workoutExercise.exerciseUUID {
                         progressionStepPicker(uuid: uuid)
+                        restDurationPicker(uuid: uuid)
                     }
+                    if canGenerateWarmups {
+                        Button {
+                            generateWarmups()
+                        } label: {
+                            Label("Generate Warm-ups", systemImage: "flame")
+                        }
+                    }
+                    Button {
+                        moveExercise(by: -1)
+                    } label: {
+                        Label("Move Up", systemImage: "arrow.up")
+                    }
+                    .disabled(isFirstExercise)
+                    Button {
+                        moveExercise(by: 1)
+                    } label: {
+                        Label("Move Down", systemImage: "arrow.down")
+                    }
+                    .disabled(isLastExercise)
                     Button(role: .destructive) {
                         removeExercise()
                     } label: {
@@ -76,10 +96,15 @@ struct WorkoutExerciseSection: View {
         return "Last: \(sets)"
     }
 
+    /// Pairs the nth working set with last session's nth working set (and
+    /// warm-ups with warm-ups), so differing warm-up counts between sessions
+    /// don't misalign the hints.
     private func lastSet(for set: SetEntry) -> LastSetSnapshot? {
-        let index = set.orderIndex
-        guard index >= 0 && index < lastSets.count else { return nil }
-        return lastSets[index]
+        let peers = workoutExercise.orderedSets.filter { $0.isWarmup == set.isWarmup }
+        guard let position = peers.firstIndex(where: { $0 === set }) else { return nil }
+        let lastPeers = lastSets.filter { $0.isWarmup == set.isWarmup }
+        guard position < lastPeers.count else { return nil }
+        return lastPeers[position]
     }
 
     private func progressionStepPicker(uuid: UUID) -> some View {
@@ -97,6 +122,63 @@ struct WorkoutExerciseSection: View {
             Label("Progression Step", systemImage: "chart.line.uptrend.xyaxis")
         }
         .pickerStyle(.menu)
+    }
+
+    private func restDurationPicker(uuid: UUID) -> some View {
+        Picker(selection: Binding(
+            get: { settings.restDurationOverrides[uuid.uuidString] ?? 0 },
+            set: { settings.setRestDuration($0 == 0 ? nil : $0, for: uuid) }
+        )) {
+            Text("Default (\(Format.timerCountdown(seconds: settings.restDurationSeconds)))").tag(0)
+            ForEach([60, 90, 120, 150, 180, 240], id: \.self) { seconds in
+                Text(Format.timerCountdown(seconds: seconds)).tag(seconds)
+            }
+        } label: {
+            Label("Rest Timer", systemImage: "timer")
+        }
+        .pickerStyle(.menu)
+    }
+
+    private var isFirstExercise: Bool {
+        workoutExercise.workout?.orderedExercises.first === workoutExercise
+    }
+
+    private var isLastExercise: Bool {
+        workoutExercise.workout?.orderedExercises.last === workoutExercise
+    }
+
+    private func moveExercise(by delta: Int) {
+        guard let workout = workoutExercise.workout else { return }
+        let ordered = workout.orderedExercises
+        guard let index = ordered.firstIndex(where: { $0 === workoutExercise }) else { return }
+        let target = index + delta
+        guard target >= 0 && target < ordered.count else { return }
+        let other = ordered[target]
+        let ownIndex = workoutExercise.orderIndex
+        workoutExercise.orderIndex = other.orderIndex
+        other.orderIndex = ownIndex
+    }
+
+    /// Offered until the exercise has warm-up sets, once a target weight is known.
+    private var canGenerateWarmups: Bool {
+        !workoutExercise.orderedSets.contains(where: \.isWarmup) && warmupTargetWeight > 0
+    }
+
+    private var warmupTargetWeight: Double {
+        if let firstWorking = workoutExercise.orderedSets.first(where: { !$0.isWarmup }),
+           firstWorking.weight > 0 {
+            return firstWorking.weight
+        }
+        return lastSets.first(where: { !$0.isWarmup && $0.isCompleted })?.weight ?? 0
+    }
+
+    private func generateWarmups() {
+        WorkoutFactory.addWarmupRamp(
+            to: workoutExercise,
+            targetWeight: warmupTargetWeight,
+            step: settings.progressionStep(for: workoutExercise.exerciseUUID),
+            context: context
+        )
     }
 
     /// Target for the next pending working set: the smallest estimated-10RM

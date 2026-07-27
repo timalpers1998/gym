@@ -8,6 +8,8 @@ struct ProgressTabView: View {
 
     @Query private var allEntries: [WorkoutExercise]
 
+    @Query private var exercises: [Exercise]
+
     @Environment(AppSettings.self) private var settings
 
     private var weeklyCounts: [WeeklyCount] {
@@ -64,23 +66,40 @@ struct ProgressTabView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(recentPRs) { pr in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(pr.exerciseName)
-                                    .font(.subheadline)
-                                Text(pr.date.formatted(.dateTime.day().month().year()))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                        if let exercise = exercise(for: pr) {
+                            NavigationLink {
+                                ExerciseDetailView(exercise: exercise)
+                            } label: {
+                                prRow(pr)
                             }
-                            Spacer()
-                            Text("\(Format.weight(pr.weight, unit: settings.weightUnit)) × \(pr.reps)")
-                                .font(.subheadline.bold())
-                                .monospacedDigit()
+                        } else {
+                            prRow(pr)
                         }
                     }
                 }
             }
         }
         .navigationTitle("Progress")
+    }
+
+    private func exercise(for pr: RecentPR) -> Exercise? {
+        guard let uuid = pr.exerciseUUID else { return nil }
+        return exercises.first { $0.uuid == uuid }
+    }
+
+    private func prRow(_ pr: RecentPR) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(pr.exerciseName)
+                    .font(.subheadline)
+                Text(pr.date.formatted(.dateTime.day().month().year()))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text("\(Format.weight(pr.weight, unit: settings.weightUnit)) × \(pr.reps)")
+                .font(.subheadline.bold())
+                .monospacedDigit()
+        }
     }
 }

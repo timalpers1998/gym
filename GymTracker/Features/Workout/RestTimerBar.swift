@@ -15,7 +15,13 @@ struct RestTimerBar: View {
 
                 ProgressView(value: restTimer.progress(at: timeline.date))
 
-                Button("+15s") {
+                Button("−15") {
+                    restTimer.add(seconds: -15)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button("+15") {
                     restTimer.add(seconds: 15)
                 }
                 .buttonStyle(.bordered)

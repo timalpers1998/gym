@@ -129,6 +129,60 @@ enum WorkoutFactory {
         return set
     }
 
+    /// Inserts a percent-based warm-up ramp above the working sets, rounded
+    /// to the exercise's progression step.
+    static func addWarmupRamp(
+        to workoutExercise: WorkoutExercise,
+        targetWeight: Double,
+        step: Double,
+        context: ModelContext
+    ) {
+        guard targetWeight > 0, step > 0 else { return }
+        let scheme: [(fraction: Double, reps: Int)] = [(0.4, 10), (0.6, 6), (0.8, 3)]
+        var ramp: [(weight: Double, reps: Int)] = []
+        for stage in scheme {
+            let rounded = max(step, (targetWeight * stage.fraction / step).rounded() * step)
+            guard rounded < targetWeight else { continue }
+            if ramp.last?.weight == rounded { continue }
+            ramp.append((rounded, stage.reps))
+        }
+        guard !ramp.isEmpty else { return }
+
+        for (offset, set) in workoutExercise.orderedSets.enumerated() {
+            set.orderIndex = ramp.count + offset
+        }
+        for (index, stage) in ramp.enumerated() {
+            let set = SetEntry(orderIndex: index, reps: stage.reps, weight: stage.weight, isWarmup: true)
+            set.workoutExercise = workoutExercise
+            context.insert(set)
+        }
+        try? context.save()
+    }
+
+    /// Drops sets never ticked off during the session; exercises left with no
+    /// sets are removed entirely.
+    static func removeIncompleteSets(in workout: Workout, context: ModelContext) {
+        for workoutExercise in workout.orderedExercises {
+            let ordered = workoutExercise.orderedSets
+            let dropped = ordered.filter { !$0.isCompleted }
+            guard !dropped.isEmpty else { continue }
+            dropped.forEach(context.delete)
+            let kept = ordered.filter(\.isCompleted)
+            if kept.isEmpty {
+                context.delete(workoutExercise)
+            } else {
+                for (index, set) in kept.enumerated() {
+                    set.orderIndex = index
+                }
+            }
+        }
+        let remaining = workout.orderedExercises
+        for (index, exercise) in remaining.enumerated() {
+            exercise.orderIndex = index
+        }
+        try? context.save()
+    }
+
     static func finish(_ workout: Workout, context: ModelContext) {
         let end = Date.now
         workout.endDate = end

@@ -12,6 +12,18 @@ struct WorkoutTabView: View {
 
     @State private var showingSettings = false
 
+    /// Most recently used first, never-used routines alphabetically at the end.
+    private var sortedTemplates: [WorkoutTemplate] {
+        templates.sorted { lhs, rhs in
+            switch (lhs.lastUsedAt, rhs.lastUsedAt) {
+            case let (left?, right?): return left > right
+            case (.some, nil): return true
+            case (nil, .some): return false
+            case (nil, nil): return lhs.name < rhs.name
+            }
+        }
+    }
+
     var body: some View {
         Group {
             if let active = activeWorkouts.first {
@@ -53,7 +65,7 @@ struct WorkoutTabView: View {
                     Text("Create a routine to start workouts with one tap.")
                         .foregroundStyle(.secondary)
                 }
-                ForEach(templates) { template in
+                ForEach(sortedTemplates) { template in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(template.name)

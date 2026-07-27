@@ -130,10 +130,49 @@ struct BodyWeightSection: View {
                 }
                 try? context.save()
             }
+
+            if entries.count > 5 {
+                NavigationLink("All Entries") {
+                    BodyWeightEntriesView()
+                }
+                .font(.subheadline)
+            }
         }
         .sheet(isPresented: $showingLogSheet) {
             BodyWeightLogSheet(lastWeightKg: latestEntry?.weightKg)
         }
+    }
+}
+
+/// Full editable history, reachable from the Progress-tab section once more
+/// than five entries exist.
+struct BodyWeightEntriesView: View {
+    @Environment(\.modelContext) private var context
+    @Environment(AppSettings.self) private var settings
+
+    @Query(sort: \BodyWeightEntry.date, order: .reverse)
+    private var entries: [BodyWeightEntry]
+
+    var body: some View {
+        List {
+            ForEach(entries) { entry in
+                HStack {
+                    Text(entry.date.formatted(.dateTime.weekday().day().month().year()))
+                        .font(.subheadline)
+                    Spacer()
+                    Text(Format.weight(entry.weightKg / settings.weightUnit.kilogramsPerUnit, unit: settings.weightUnit))
+                        .font(.subheadline.monospacedDigit())
+                }
+            }
+            .onDelete { offsets in
+                for index in offsets {
+                    context.delete(entries[index])
+                }
+                try? context.save()
+            }
+        }
+        .navigationTitle("Body Weight")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

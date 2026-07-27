@@ -69,8 +69,22 @@ struct ExercisePickerView: View {
                     }
                 }
             }
+            .overlay {
+                if visibleExercises.isEmpty && !searchText.isEmpty {
+                    ContentUnavailableView {
+                        Label("No Matches", systemImage: "magnifyingglass")
+                    } description: {
+                        Text("No exercise matches \"\(searchText)\".")
+                    } actions: {
+                        Button("Create \"\(searchText)\"") {
+                            showingNewExercise = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+            }
             .sheet(isPresented: $showingNewExercise) {
-                ExerciseEditorView(exercise: nil) { created in
+                ExerciseEditorView(exercise: nil, initialName: searchText) { created in
                     selected.insert(created.persistentModelID)
                 }
             }

@@ -87,8 +87,13 @@ final class RestTimerModel {
 
     func add(seconds: TimeInterval) {
         guard let current = endDate, current > Date.now else { return }
-        totalDuration += seconds
         let end = current.addingTimeInterval(seconds)
+        guard end > Date.now else {
+            // Shortening past zero just ends the rest.
+            skip()
+            return
+        }
+        totalDuration = max(1, totalDuration + seconds)
         endDate = end
         persist()
         Task {

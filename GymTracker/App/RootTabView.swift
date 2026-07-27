@@ -4,6 +4,7 @@ import UserNotifications
 struct RootTabView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var context
+    @Environment(RestTimerModel.self) private var restTimer
     @State private var router = AppRouter()
 
     var body: some View {
@@ -11,6 +12,7 @@ struct RootTabView: View {
             NavigationStack {
                 WorkoutTabView()
             }
+            .safeAreaInset(edge: .bottom) { timerBar }
             .tabItem {
                 Label("Workout", systemImage: "dumbbell.fill")
             }
@@ -19,6 +21,7 @@ struct RootTabView: View {
             NavigationStack {
                 HistoryView()
             }
+            .safeAreaInset(edge: .bottom) { timerBar }
             .tabItem {
                 Label("History", systemImage: "calendar")
             }
@@ -27,6 +30,7 @@ struct RootTabView: View {
             NavigationStack {
                 ExerciseLibraryView()
             }
+            .safeAreaInset(edge: .bottom) { timerBar }
             .tabItem {
                 Label("Exercises", systemImage: "figure.strengthtraining.traditional")
             }
@@ -35,6 +39,7 @@ struct RootTabView: View {
             NavigationStack {
                 ProgressTabView()
             }
+            .safeAreaInset(edge: .bottom) { timerBar }
             .tabItem {
                 Label("Progress", systemImage: "chart.line.uptrend.xyaxis")
             }
@@ -42,10 +47,22 @@ struct RootTabView: View {
         }
         .environment(router)
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
-                UNUserNotificationCenter.current().removeAllDeliveredNotifications()
-                WidgetDataStore.refresh(context: context)
-            }
+            handlePhaseChange(newPhase)
+        }
+    }
+
+    /// The rest countdown follows the lifter across tabs.
+    @ViewBuilder
+    private var timerBar: some View {
+        if restTimer.endDate != nil {
+            RestTimerBar()
+        }
+    }
+
+    private func handlePhaseChange(_ newPhase: ScenePhase) {
+        if newPhase == .active {
+            UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+            WidgetDataStore.refresh(context: context)
         }
     }
 }

@@ -2,6 +2,8 @@ import SwiftUI
 import SwiftData
 
 struct HistoryView: View {
+    @Environment(\.modelContext) private var context
+
     @Query(filter: #Predicate<Workout> { $0.endDate != nil }, sort: \Workout.startDate, order: .reverse)
     private var workouts: [Workout]
 
@@ -31,6 +33,13 @@ struct HistoryView: View {
                         } label: {
                             WorkoutRowView(workout: workout)
                         }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                delete(workout)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
                 }
             }
@@ -45,5 +54,11 @@ struct HistoryView: View {
                 )
             }
         }
+    }
+
+    private func delete(_ workout: Workout) {
+        context.delete(workout)
+        try? context.save()
+        WidgetDataStore.refresh(context: context)
     }
 }
