@@ -37,6 +37,10 @@ final class AppSettings {
         didSet { UserDefaults.standard.set(barWeight, forKey: Keys.barWeight) }
     }
 
+    var healthSyncEnabled: Bool {
+        didSet { UserDefaults.standard.set(healthSyncEnabled, forKey: HealthService.enabledKey) }
+    }
+
     var weightUnit: WeightUnit {
         get { WeightUnit(rawValue: weightUnitRaw) ?? .kg }
         set { weightUnitRaw = newValue.rawValue }
@@ -58,5 +62,6 @@ final class AppSettings {
         weightUnitRaw = storedUnit
         let storedBar = defaults.double(forKey: Keys.barWeight)
         barWeight = storedBar > 0 ? storedBar : (storedUnit == WeightUnit.lb.rawValue ? 45 : 20)
+        healthSyncEnabled = defaults.bool(forKey: HealthService.enabledKey)
     }
 }

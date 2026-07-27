@@ -101,6 +101,11 @@ struct ActiveWorkoutView: View {
     private func finishWorkout() {
         restTimer.skip()
         WorkoutFactory.finish(workout, context: context)
+        let start = workout.startDate
+        let end = workout.endDate ?? Date.now
+        Task {
+            await HealthService.saveWorkout(start: start, end: end)
+        }
     }
 
     private func cancelWorkout() {

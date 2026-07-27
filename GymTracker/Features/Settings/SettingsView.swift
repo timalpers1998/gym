@@ -45,6 +45,25 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Toggle("Sync workouts to Apple Health", isOn: $settings.healthSyncEnabled)
+                        .disabled(!HealthService.isAvailable)
+                        .onChange(of: settings.healthSyncEnabled) { _, enabled in
+                            if enabled {
+                                Task {
+                                    let granted = await HealthService.requestAuthorization()
+                                    if !granted {
+                                        settings.healthSyncEnabled = false
+                                    }
+                                }
+                            }
+                        }
+                } header: {
+                    Text("Apple Health")
+                } footer: {
+                    Text("Finished workouts are saved as strength training and body weight entries as weight samples. Manage access in the Health app.")
+                }
+
+                Section {
                     if let exportURL {
                         ShareLink(item: exportURL) {
                             Label("Export Workout History", systemImage: "square.and.arrow.up")

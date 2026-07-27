@@ -187,6 +187,10 @@ struct BodyWeightLogSheet: View {
         let entry = BodyWeightEntry(date: date, weightKg: kg)
         context.insert(entry)
         try? context.save()
+        let entryDate = date
+        Task {
+            await HealthService.saveBodyWeight(kilograms: kg, date: entryDate)
+        }
         dismiss()
     }
 }
