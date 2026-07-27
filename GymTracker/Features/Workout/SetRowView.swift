@@ -58,9 +58,16 @@ struct SetRowView: View {
         }
     }
 
+    /// Position among working sets, so generated warm-ups don't shift the
+    /// visible numbering to "4, 5, 6".
+    private var workingSetNumber: Int {
+        let peers = (set.workoutExercise?.orderedSets ?? []).filter { !$0.isWarmup }
+        return (peers.firstIndex(where: { $0 === set }) ?? set.orderIndex) + 1
+    }
+
     private var fieldsRow: some View {
         HStack(spacing: 10) {
-            Text(set.isWarmup ? "W" : "\(set.orderIndex + 1)")
+            Text(set.isWarmup ? "W" : "\(workingSetNumber)")
                 .font(.caption.monospacedDigit().bold())
                 .foregroundStyle(set.isWarmup ? Color.orange : Color.secondary)
                 .frame(width: 24)

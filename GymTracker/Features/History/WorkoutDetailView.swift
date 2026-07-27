@@ -15,6 +15,20 @@ struct WorkoutDetailView: View {
     @State private var showingActiveWorkoutWarning = false
 
     var body: some View {
+        // The workout can be swipe-deleted in History while this screen sits
+        // on another tab's navigation stack; don't touch a deleted model.
+        if workout.isDeleted {
+            ContentUnavailableView(
+                "Workout Deleted",
+                systemImage: "trash",
+                description: Text("This workout was removed.")
+            )
+        } else {
+            detailContent
+        }
+    }
+
+    private var detailContent: some View {
         List {
             Section {
                 HStack(spacing: 8) {
@@ -35,7 +49,7 @@ struct WorkoutDetailView: View {
                 Section(workoutExercise.exerciseName) {
                     ForEach(workoutExercise.orderedSets) { set in
                         HStack {
-                            Text(set.isWarmup ? "W" : "\(set.orderIndex + 1)")
+                            Text(set.isWarmup ? "W" : "\(workingSetNumber(of: set, in: workoutExercise))")
                                 .font(.caption.monospacedDigit().bold())
                                 .foregroundStyle(set.isWarmup ? Color.orange : Color.secondary)
                                 .frame(width: 24)
@@ -107,6 +121,11 @@ struct WorkoutDetailView: View {
         } message: {
             Text("Finish or discard your current workout before starting a new one.")
         }
+    }
+
+    private func workingSetNumber(of set: SetEntry, in workoutExercise: WorkoutExercise) -> Int {
+        let peers = workoutExercise.orderedSets.filter { !$0.isWarmup }
+        return (peers.firstIndex(where: { $0 === set }) ?? set.orderIndex) + 1
     }
 
     private func repeatWorkout() {

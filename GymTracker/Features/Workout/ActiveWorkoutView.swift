@@ -98,6 +98,13 @@ struct ActiveWorkoutView: View {
         if removeIncomplete {
             WorkoutFactory.removeIncompleteSets(in: workout, context: context)
         }
+        guard !workout.orderedExercises.isEmpty else {
+            // Nothing was actually done — a finished empty shell would count
+            // toward streaks, the widget, and Apple Health.
+            context.delete(workout)
+            try? context.save()
+            return
+        }
         WorkoutFactory.finish(workout, context: context)
         let start = workout.startDate
         let end = workout.endDate ?? Date.now
@@ -147,7 +154,10 @@ private struct FinishWorkoutSheet: View {
 
                 if pendingSetCount > 0 {
                     Section {
-                        LabeledContent("Not completed", value: "\(pendingSetCount) sets")
+                        LabeledContent(
+                            "Not completed",
+                            value: "\(pendingSetCount) set\(pendingSetCount == 1 ? "" : "s")"
+                        )
                         Toggle("Remove incomplete sets", isOn: $removeIncomplete)
                     } footer: {
                         Text("Sets you never ticked off are dropped from the saved workout.")
