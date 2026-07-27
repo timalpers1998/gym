@@ -41,23 +41,24 @@ enum GymSchemaV3: VersionedSchema {
 
 enum GymMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [GymSchemaV1.self, GymSchemaV2.self, GymSchemaV3.self]
+        [GymSchemaV1.self, GymSchemaV2.self, GymSchemaV3.self, GymSchemaV4.self]
     }
 
     static var stages: [MigrationStage] {
         [
             .lightweight(fromVersion: GymSchemaV1.self, toVersion: GymSchemaV2.self),
             .lightweight(fromVersion: GymSchemaV2.self, toVersion: GymSchemaV3.self),
+            .lightweight(fromVersion: GymSchemaV3.self, toVersion: GymSchemaV4.self),
         ]
     }
 }
 
-typealias Exercise = GymSchemaV1.Exercise
-typealias WorkoutTemplate = GymSchemaV1.WorkoutTemplate
-typealias TemplateExercise = GymSchemaV1.TemplateExercise
-typealias TemplateSet = GymSchemaV1.TemplateSet
-typealias Workout = GymSchemaV1.Workout
-typealias WorkoutExercise = GymSchemaV1.WorkoutExercise
-typealias SetEntry = GymSchemaV1.SetEntry
+typealias Exercise = GymSchemaV4.Exercise
+typealias WorkoutTemplate = GymSchemaV4.WorkoutTemplate
+typealias TemplateExercise = GymSchemaV4.TemplateExercise
+typealias TemplateSet = GymSchemaV4.TemplateSet
+typealias Workout = GymSchemaV4.Workout
+typealias WorkoutExercise = GymSchemaV4.WorkoutExercise
+typealias SetEntry = GymSchemaV4.SetEntry
 typealias BodyWeightEntry = GymSchemaV2.BodyWeightEntry
 typealias SetEffort = GymSchemaV3.SetEffort

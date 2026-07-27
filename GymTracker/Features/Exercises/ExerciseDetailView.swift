@@ -53,7 +53,8 @@ struct ExerciseDetailView: View {
                 }
             }
 
-            if let records = ProgressCalculator.personalRecords(for: history) {
+            if exercise.measurement == .reps,
+               let records = ProgressCalculator.personalRecords(for: history) {
                 Section("Personal Records") {
                     HStack(spacing: 8) {
                         StatCard(
@@ -79,7 +80,7 @@ struct ExerciseDetailView: View {
 
             Section("Progress") {
                 if dataPoints.count >= 2 {
-                    ExerciseChartsView(dataPoints: dataPoints)
+                    ExerciseChartsView(dataPoints: dataPoints, measurement: exercise.measurement)
                 } else {
                     Text("Log this exercise in at least two workouts to see progress charts.")
                         .font(.subheadline)
@@ -108,12 +109,10 @@ struct ExerciseDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    if exercise.isCustom {
-                        Button {
-                            showingEditor = true
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                        }
+                    Button {
+                        showingEditor = true
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
                     }
                     Button {
                         exercise.isArchived.toggle()
@@ -169,6 +168,11 @@ struct ExerciseDetailView: View {
     private func setsSummary(for entry: WorkoutExercise) -> String {
         let sets = entry.orderedSets.filter(\.isCompleted)
         guard !sets.isEmpty else { return "No completed sets" }
+        if exercise.measurement == .duration {
+            return sets
+                .map { Format.duration(seconds: $0.durationSeconds) }
+                .joined(separator: "  ")
+        }
         return sets
             .map { "\(Format.plainWeight($0.weight))×\($0.reps)" }
             .joined(separator: "  ")

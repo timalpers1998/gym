@@ -71,8 +71,8 @@ enum ExerciseSeedData {
         SeedExercise(uuidString: "FA7F04FB-F5CE-568E-9686-EAAD2DB095DC", name: "Triceps Pushdown", muscleGroup: .arms, equipment: .cable),
 
         // MARK: Core
-        SeedExercise(uuidString: "835BB0AD-3004-581F-808B-7E6309258BCE", name: "Plank", muscleGroup: .core, equipment: .bodyweight),
-        SeedExercise(uuidString: "B134B600-21A9-556B-899D-C315F54B9327", name: "Side Plank", muscleGroup: .core, equipment: .bodyweight),
+        SeedExercise(uuidString: "835BB0AD-3004-581F-808B-7E6309258BCE", name: "Plank", muscleGroup: .core, equipment: .bodyweight, measurement: .duration),
+        SeedExercise(uuidString: "B134B600-21A9-556B-899D-C315F54B9327", name: "Side Plank", muscleGroup: .core, equipment: .bodyweight, measurement: .duration),
         SeedExercise(uuidString: "930C5FFB-F531-529D-A834-C7D1443F960A", name: "Crunch", muscleGroup: .core, equipment: .bodyweight),
         SeedExercise(uuidString: "A4048060-B081-56BD-A954-8AE1191E919D", name: "Hanging Leg Raise", muscleGroup: .core, equipment: .bodyweight),
         SeedExercise(uuidString: "5EB78BE0-029E-58E9-B0F1-C33C2D5C9E4A", name: "Russian Twist", muscleGroup: .core, equipment: .bodyweight),

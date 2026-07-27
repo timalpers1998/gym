@@ -27,11 +27,20 @@ enum WorkoutFactory {
                     exerciseUUID: templateExercise.exerciseUUID
                 )
             }
+            workoutExercise.supersetGroup = templateExercise.supersetGroup
             workoutExercise.workout = workout
             context.insert(workoutExercise)
 
+            // Duration exercises must not inherit the template's default rep
+            // target — phantom reps would count as volume and fake PRs.
+            let isDuration = templateExercise.exercise?.measurement == .duration
             for (index, planned) in templateExercise.orderedSets.enumerated() {
-                let set = SetEntry(orderIndex: index, reps: planned.targetReps, weight: planned.targetWeight)
+                let set = SetEntry(
+                    orderIndex: index,
+                    reps: isDuration ? 0 : planned.targetReps,
+                    weight: planned.targetWeight,
+                    durationSeconds: planned.targetDurationSeconds
+                )
                 set.workoutExercise = workoutExercise
                 context.insert(set)
             }
@@ -58,6 +67,7 @@ enum WorkoutFactory {
                     exerciseUUID: sourceExercise.exerciseUUID
                 )
             }
+            workoutExercise.supersetGroup = sourceExercise.supersetGroup
             workoutExercise.workout = workout
             context.insert(workoutExercise)
 
@@ -66,7 +76,9 @@ enum WorkoutFactory {
                     orderIndex: index,
                     reps: sourceSet.reps,
                     weight: sourceSet.weight,
-                    isWarmup: sourceSet.isWarmup
+                    isWarmup: sourceSet.isWarmup,
+                    type: sourceSet.type,
+                    durationSeconds: sourceSet.durationSeconds
                 )
                 set.workoutExercise = workoutExercise
                 context.insert(set)
@@ -93,11 +105,17 @@ enum WorkoutFactory {
                     exerciseUUID: workoutExercise.exerciseUUID
                 )
             }
+            templateExercise.supersetGroup = workoutExercise.supersetGroup
             templateExercise.template = template
             context.insert(templateExercise)
 
             for (index, set) in workoutExercise.orderedSets.enumerated() {
-                let planned = TemplateSet(orderIndex: index, targetReps: set.reps, targetWeight: set.weight)
+                let planned = TemplateSet(
+                    orderIndex: index,
+                    targetReps: set.reps,
+                    targetWeight: set.weight,
+                    targetDurationSeconds: set.durationSeconds
+                )
                 planned.templateExercise = templateExercise
                 context.insert(planned)
             }
@@ -123,7 +141,12 @@ enum WorkoutFactory {
         let ordered = workoutExercise.orderedSets
         let nextIndex = (ordered.map(\.orderIndex).max() ?? -1) + 1
         let last = ordered.last
-        let set = SetEntry(orderIndex: nextIndex, reps: last?.reps ?? 0, weight: last?.weight ?? 0)
+        let set = SetEntry(
+            orderIndex: nextIndex,
+            reps: last?.reps ?? 0,
+            weight: last?.weight ?? 0,
+            durationSeconds: last?.durationSeconds ?? 0
+        )
         set.workoutExercise = workoutExercise
         context.insert(set)
         return set
@@ -196,6 +219,14 @@ enum WorkoutFactory {
         for (index, exercise) in remaining.enumerated() {
             exercise.orderIndex = index
         }
+        // Dropping empty exercises can leave one-member supersets behind —
+        // dissolve them so history doesn't show a lone "Superset A".
+        let groupCounts = Dictionary(grouping: remaining.compactMap(\.supersetGroup)) { $0 }
+        for exercise in remaining {
+            if let group = exercise.supersetGroup, (groupCounts[group]?.count ?? 0) < 2 {
+                exercise.supersetGroup = nil
+            }
+        }
         try? context.save()
     }
 
@@ -257,6 +288,67 @@ enum WorkoutFactory {
             predicate: #Predicate<SetEffort> { $0.workoutStartDate == start && $0.exerciseUUID == uuid }
         )
         return (try? context.fetch(descriptor)) ?? []
+    }
+
+    // MARK: - Supersets
+
+    /// Links an exercise with the one after it. If either side is already in
+    /// a superset the groups are merged, so chaining "superset with next"
+    /// builds tri-sets and circuits.
+    static func supersetWithNext(_ workoutExercise: WorkoutExercise, context: ModelContext) {
+        guard let workout = workoutExercise.workout else { return }
+        link(workoutExercise, in: workout.orderedExercises)
+        try? context.save()
+    }
+
+    static func supersetWithNext(_ templateExercise: TemplateExercise, context: ModelContext) {
+        guard let template = templateExercise.template else { return }
+        link(templateExercise, in: template.orderedExercises)
+        try? context.save()
+    }
+
+    static func removeFromSuperset(_ workoutExercise: WorkoutExercise, context: ModelContext) {
+        guard let workout = workoutExercise.workout else { return }
+        unlink(workoutExercise, in: workout.orderedExercises)
+        try? context.save()
+    }
+
+    static func removeFromSuperset(_ templateExercise: TemplateExercise, context: ModelContext) {
+        guard let template = templateExercise.template else { return }
+        unlink(templateExercise, in: template.orderedExercises)
+        try? context.save()
+    }
+
+    private static func link(_ exercise: some SupersetMember, in ordered: [some SupersetMember]) {
+        guard let index = ordered.firstIndex(where: { $0 === exercise }),
+              index + 1 < ordered.count else { return }
+        let next = ordered[index + 1]
+        // Capture both group values before rewriting — the loop below mutates
+        // them, and a live read would strand later members of a merged group.
+        let ownGroup = exercise.supersetGroup
+        let nextGroup = next.supersetGroup
+        let target = ownGroup
+            ?? nextGroup
+            ?? (ordered.compactMap(\.supersetGroup).max() ?? 0) + 1
+        for member in ordered {
+            if let old = member.supersetGroup, old == ownGroup || old == nextGroup {
+                member.supersetGroup = target
+            }
+        }
+        exercise.supersetGroup = target
+        next.supersetGroup = target
+    }
+
+    private static func unlink(_ exercise: some SupersetMember, in ordered: [some SupersetMember]) {
+        let old = exercise.supersetGroup
+        exercise.supersetGroup = nil
+        // A superset needs two members; dissolve a group left with one.
+        if let old {
+            let remaining = ordered.filter { $0.supersetGroup == old }
+            if remaining.count < 2 {
+                remaining.forEach { $0.supersetGroup = nil }
+            }
+        }
     }
 
     static func finish(_ workout: Workout, context: ModelContext) {

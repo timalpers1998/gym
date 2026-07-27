@@ -46,20 +46,34 @@ struct WorkoutDetailView: View {
             }
 
             ForEach(workout.orderedExercises) { workoutExercise in
-                Section(workoutExercise.exerciseName) {
+                Section {
                     ForEach(workoutExercise.orderedSets) { set in
                         HStack {
-                            Text(set.isWarmup ? "W" : "\(workingSetNumber(of: set, in: workoutExercise))")
+                            Text(indexLabel(of: set, in: workoutExercise))
                                 .font(.caption.monospacedDigit().bold())
-                                .foregroundStyle(set.isWarmup ? Color.orange : Color.secondary)
+                                .foregroundStyle(indexColor(of: set))
                                 .frame(width: 24)
-                            Text("\(Format.plainWeight(set.weight)) \(settings.weightUnit.displayName) × \(set.reps)")
+                            Text(setText(set, in: workoutExercise))
                                 .monospacedDigit()
                             Spacer()
                             if set.isCompleted {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundStyle(.green)
                             }
+                        }
+                    }
+                } header: {
+                    HStack(spacing: 6) {
+                        Text(workoutExercise.exerciseName)
+                        if let group = workoutExercise.supersetGroup,
+                           let label = workout.supersetLabel(for: group) {
+                            Text(label)
+                                .font(.caption2.bold())
+                                .textCase(nil)
+                                .foregroundStyle(.teal)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.teal.opacity(0.15), in: Capsule())
                         }
                     }
                 }
@@ -123,8 +137,33 @@ struct WorkoutDetailView: View {
     }
 
     private func workingSetNumber(of set: SetEntry, in workoutExercise: WorkoutExercise) -> Int {
-        let peers = workoutExercise.orderedSets.filter { !$0.isWarmup }
+        let peers = workoutExercise.orderedSets.filter { !$0.isWarmup && $0.type.marker == nil }
         return (peers.firstIndex(where: { $0 === set }) ?? set.orderIndex) + 1
+    }
+
+    private func indexLabel(of set: SetEntry, in workoutExercise: WorkoutExercise) -> String {
+        if set.isWarmup { return "W" }
+        return set.type.marker ?? "\(workingSetNumber(of: set, in: workoutExercise))"
+    }
+
+    private func indexColor(of set: SetEntry) -> Color {
+        if set.isWarmup { return .orange }
+        switch set.type {
+        case .working: return .secondary
+        case .dropSet: return .purple
+        case .failure: return .red
+        case .amrap: return .blue
+        }
+    }
+
+    private func setText(_ set: SetEntry, in workoutExercise: WorkoutExercise) -> String {
+        if workoutExercise.measurement == .duration {
+            let time = Format.duration(seconds: set.durationSeconds)
+            return set.weight > 0
+                ? "\(Format.plainWeight(set.weight)) \(settings.weightUnit.displayName) × \(time)"
+                : time
+        }
+        return "\(Format.plainWeight(set.weight)) \(settings.weightUnit.displayName) × \(set.reps)"
     }
 
     private func repeatWorkout() {

@@ -11,6 +11,8 @@ struct LastSetSnapshot {
     let isWarmup: Bool
     /// Reps in reserve recorded for the set last session, if any.
     var rir: Int? = nil
+    var type: SetType = .working
+    var durationSeconds: Int = 0
 }
 
 struct WorkoutExerciseSection: View {
@@ -61,7 +63,18 @@ struct WorkoutExerciseSection: View {
         } header: {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(workoutExercise.exerciseName)
+                    HStack(spacing: 6) {
+                        Text(workoutExercise.exerciseName)
+                        if let supersetLabel {
+                            Text(supersetLabel)
+                                .font(.caption2.bold())
+                                .textCase(nil)
+                                .foregroundStyle(supersetColor)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(supersetColor.opacity(0.15), in: Capsule())
+                        }
+                    }
                     if let lastSummary {
                         Text(lastSummary)
                             .font(.caption2)
@@ -74,6 +87,19 @@ struct WorkoutExerciseSection: View {
                     if let uuid = workoutExercise.exerciseUUID {
                         progressionStepPicker(uuid: uuid)
                         restDurationPicker(uuid: uuid)
+                    }
+                    Button {
+                        WorkoutFactory.supersetWithNext(workoutExercise, context: context)
+                    } label: {
+                        Label("Superset with Next", systemImage: "link")
+                    }
+                    .disabled(isLastExercise)
+                    if workoutExercise.supersetGroup != nil {
+                        Button {
+                            WorkoutFactory.removeFromSuperset(workoutExercise, context: context)
+                        } label: {
+                            Label("Remove from Superset", systemImage: "scissors")
+                        }
                     }
                     if canGenerateWarmups {
                         Button {
@@ -110,22 +136,44 @@ struct WorkoutExerciseSection: View {
         }
     }
 
+    private var supersetLabel: String? {
+        guard let group = workoutExercise.supersetGroup else { return nil }
+        return workoutExercise.workout?.supersetLabel(for: group)
+    }
+
+    private var supersetColor: Color {
+        guard let group = workoutExercise.supersetGroup,
+              let index = workoutExercise.workout?.supersetGroups.firstIndex(of: group)
+        else { return .teal }
+        let palette: [Color] = [.teal, .indigo, .pink, .mint, .brown]
+        return palette[index % palette.count]
+    }
+
     private var lastSummary: String? {
         let completed = lastSets.filter(\.isCompleted)
         guard !completed.isEmpty else { return nil }
+        let isDuration = workoutExercise.measurement == .duration
         let sets = completed
-            .map { "\(Format.plainWeight($0.weight))×\($0.reps)" }
+            .map { set in
+                isDuration
+                    ? Format.duration(seconds: set.durationSeconds)
+                    : "\(Format.plainWeight(set.weight))×\(set.reps)"
+            }
             .joined(separator: " · ")
         return "Last: \(sets)"
     }
 
     /// Pairs the nth working set with last session's nth working set (and
-    /// warm-ups with warm-ups), so differing warm-up counts between sessions
-    /// don't misalign the hints.
+    /// warm-ups with warm-ups, drop sets with drop sets), so differing
+    /// warm-up or drop-set counts between sessions don't misalign the hints.
     private func lastSet(for set: SetEntry) -> LastSetSnapshot? {
-        let peers = workoutExercise.orderedSets.filter { $0.isWarmup == set.isWarmup }
+        let peers = workoutExercise.orderedSets.filter {
+            $0.isWarmup == set.isWarmup && ($0.type == .dropSet) == (set.type == .dropSet)
+        }
         guard let position = peers.firstIndex(where: { $0 === set }) else { return nil }
-        let lastPeers = lastSets.filter { $0.isWarmup == set.isWarmup }
+        let lastPeers = lastSets.filter {
+            $0.isWarmup == set.isWarmup && ($0.type == .dropSet) == (set.type == .dropSet)
+        }
         guard position < lastPeers.count else { return nil }
         return lastPeers[position]
     }
@@ -184,7 +232,9 @@ struct WorkoutExerciseSection: View {
 
     /// Offered until the exercise has warm-up sets, once a target weight is known.
     private var canGenerateWarmups: Bool {
-        !workoutExercise.orderedSets.contains(where: \.isWarmup) && warmupTargetWeight > 0
+        workoutExercise.measurement == .reps
+            && !workoutExercise.orderedSets.contains(where: \.isWarmup)
+            && warmupTargetWeight > 0
     }
 
     private var warmupTargetWeight: Double {
@@ -209,9 +259,11 @@ struct WorkoutExerciseSection: View {
     /// Target for the next pending working set: the smallest estimated-10RM
     /// increase over last session's corresponding set. Other rows get nil.
     private func suggestion(for set: SetEntry) -> ProgressionSuggestion? {
-        guard !set.isCompleted, !set.isWarmup else { return nil }
-        guard let current = workoutExercise.orderedSets.first(where: { !$0.isCompleted && !$0.isWarmup }),
-              current === set else { return nil }
+        guard workoutExercise.measurement == .reps else { return nil }
+        guard !set.isCompleted, !set.isWarmup, set.type != .dropSet else { return nil }
+        guard let current = workoutExercise.orderedSets.first(where: {
+            !$0.isCompleted && !$0.isWarmup && $0.type != .dropSet
+        }), current === set else { return nil }
         guard let baseline = lastSet(for: set),
               baseline.isCompleted, !baseline.isWarmup, baseline.reps > 0 else { return nil }
         let step = settings.progressionStep(for: workoutExercise.exerciseUUID)
@@ -246,7 +298,10 @@ struct WorkoutExerciseSection: View {
     /// baseline holds the next target at last session's numbers.
     private func allowIncrease(before set: SetEntry) -> Bool {
         let previous = workoutExercise.orderedSets
-            .filter { $0.isCompleted && !$0.isWarmup && $0.orderIndex < set.orderIndex }
+            .filter {
+                $0.isCompleted && !$0.isWarmup && $0.type != .dropSet
+                    && $0.orderIndex < set.orderIndex
+            }
             .max { $0.orderIndex < $1.orderIndex }
         guard let previous else { return true }
         // A set taken to failure this session means no added load on the next.
@@ -295,7 +350,9 @@ struct WorkoutExerciseSection: View {
                 reps: set.reps,
                 isCompleted: set.isCompleted,
                 isWarmup: set.isWarmup,
-                rir: lastEfforts[set.orderIndex]
+                rir: lastEfforts[set.orderIndex],
+                type: set.type,
+                durationSeconds: set.durationSeconds
             )
         }
 
@@ -383,6 +440,13 @@ struct WorkoutExerciseSection: View {
         let remaining = workout.orderedExercises.filter { $0 !== workoutExercise }
         for (index, exercise) in remaining.enumerated() {
             exercise.orderIndex = index
+        }
+        // A superset needs two members; dissolve groups the removal emptied.
+        let groupCounts = Dictionary(grouping: remaining.compactMap(\.supersetGroup)) { $0 }
+        for exercise in remaining {
+            if let group = exercise.supersetGroup, (groupCounts[group]?.count ?? 0) < 2 {
+                exercise.supersetGroup = nil
+            }
         }
     }
 }

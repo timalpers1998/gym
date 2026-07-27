@@ -3,18 +3,33 @@ import Charts
 
 struct ExerciseChartsView: View {
     let dataPoints: [ExerciseDataPoint]
+    var measurement: ExerciseMeasurement = .reps
 
     @Environment(AppSettings.self) private var settings
 
-    @State private var metric: Metric = .topSet
+    @State private var metric: Metric
     @State private var range: ChartRange = .threeMonths
+
+    init(dataPoints: [ExerciseDataPoint], measurement: ExerciseMeasurement = .reps) {
+        self.dataPoints = dataPoints
+        self.measurement = measurement
+        _metric = State(initialValue: measurement == .duration ? .topDuration : .topSet)
+    }
 
     enum Metric: String, CaseIterable, Identifiable {
         case topSet = "Top Set"
         case volume = "Volume"
         case e1rm = "Est. 1RM"
+        case topDuration = "Longest Set"
+        case totalDuration = "Total Time"
 
         var id: String { rawValue }
+    }
+
+    private var availableMetrics: [Metric] {
+        measurement == .duration
+            ? [.topDuration, .totalDuration]
+            : [.topSet, .volume, .e1rm]
     }
 
     enum ChartRange: String, CaseIterable, Identifiable {
@@ -44,13 +59,15 @@ struct ExerciseChartsView: View {
         case .topSet: point.topSetWeight
         case .volume: point.totalVolume
         case .e1rm: point.bestE1RM
+        case .topDuration: Double(point.topDuration) / 60
+        case .totalDuration: Double(point.totalDuration) / 60
         }
     }
 
     var body: some View {
         VStack(spacing: 12) {
             Picker("Metric", selection: $metric) {
-                ForEach(Metric.allCases) { metric in
+                ForEach(availableMetrics) { metric in
                     Text(metric.rawValue).tag(metric)
                 }
             }
@@ -83,11 +100,18 @@ struct ExerciseChartsView: View {
             }
             .pickerStyle(.segmented)
 
-            Text("Values in \(settings.weightUnit.displayName). Completed working sets only.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(
+                measurement == .duration
+                    ? "Values in minutes. Completed working sets only."
+                    : "Values in \(settings.weightUnit.displayName). Completed working sets only."
+            )
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.vertical, 4)
+        .onChange(of: measurement) { _, newValue in
+            metric = newValue == .duration ? .topDuration : .topSet
+        }
     }
 }

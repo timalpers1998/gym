@@ -35,10 +35,36 @@ struct TemplateEditorView: View {
                                 TemplateSetSchemeEditor(templateExercise: templateExercise)
                             } label: {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(templateExercise.exerciseName)
+                                    HStack(spacing: 6) {
+                                        Text(templateExercise.exerciseName)
+                                        if let group = templateExercise.supersetGroup,
+                                           let label = template.supersetLabel(for: group) {
+                                            Text(label)
+                                                .font(.caption2.bold())
+                                                .foregroundStyle(.teal)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(Color.teal.opacity(0.15), in: Capsule())
+                                        }
+                                    }
                                     Text(setSummary(for: templateExercise))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
+                                }
+                            }
+                            .contextMenu {
+                                Button {
+                                    WorkoutFactory.supersetWithNext(templateExercise, context: context)
+                                } label: {
+                                    Label("Superset with Next", systemImage: "link")
+                                }
+                                .disabled(template.orderedExercises.last === templateExercise)
+                                if templateExercise.supersetGroup != nil {
+                                    Button {
+                                        WorkoutFactory.removeFromSuperset(templateExercise, context: context)
+                                    } label: {
+                                        Label("Remove from Superset", systemImage: "scissors")
+                                    }
                                 }
                             }
                         }
@@ -103,6 +129,10 @@ struct TemplateEditorView: View {
     private func setSummary(for templateExercise: TemplateExercise) -> String {
         let sets = templateExercise.orderedSets
         guard !sets.isEmpty else { return "No sets" }
+        if templateExercise.exercise?.measurement == .duration {
+            let times = sets.map { Format.duration(seconds: $0.targetDurationSeconds) }.joined(separator: "/")
+            return "\(sets.count) sets · \(times)"
+        }
         let reps = sets.map { "\($0.targetReps)" }.joined(separator: "/")
         return "\(sets.count) sets · \(reps) reps"
     }

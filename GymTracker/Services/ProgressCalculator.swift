@@ -7,6 +7,9 @@ struct ExerciseDataPoint: Identifiable {
     let topSetWeight: Double
     let totalVolume: Double
     let bestE1RM: Double
+    /// Longest and summed completed working-set time, for duration exercises.
+    var topDuration: Int = 0
+    var totalDuration: Int = 0
 }
 
 struct PersonalRecords {
@@ -47,7 +50,7 @@ enum ProgressCalculator {
         var byWorkout: [PersistentIdentifier: (date: Date, sets: [SetEntry])] = [:]
         for entry in entries {
             guard let workout = entry.workout, workout.endDate != nil else { continue }
-            let sets = entry.completedSets.filter { !$0.isWarmup && $0.reps > 0 }
+            let sets = entry.completedSets.filter { !$0.isWarmup && ($0.reps > 0 || $0.durationSeconds > 0) }
             guard !sets.isEmpty else { continue }
             byWorkout[workout.persistentModelID, default: (workout.startDate, [])].sets.append(contentsOf: sets)
         }
@@ -58,13 +61,16 @@ enum ProgressCalculator {
                     date: date,
                     topSetWeight: sets.map(\.weight).max() ?? 0,
                     totalVolume: sets.reduce(0) { $0 + $1.volume },
-                    bestE1RM: sets.map { epleyOneRepMax(weight: $0.weight, reps: $0.reps) }.max() ?? 0
+                    bestE1RM: sets.map { epleyOneRepMax(weight: $0.weight, reps: $0.reps) }.max() ?? 0,
+                    topDuration: sets.map(\.durationSeconds).max() ?? 0,
+                    totalDuration: sets.reduce(0) { $0 + $1.durationSeconds }
                 )
             }
             .sorted { $0.date < $1.date }
     }
 
     static func personalRecords(for entries: [WorkoutExercise]) -> PersonalRecords? {
+        let entries = entries.filter { $0.measurement == .reps }
         var heaviest: (weight: Double, reps: Int, date: Date)?
         var bestE1RM: (value: Double, date: Date)?
         var bestSession: (volume: Double, date: Date)?
@@ -115,7 +121,8 @@ enum ProgressCalculator {
 
         var events: [SetEvent] = []
         for entry in entries {
-            guard let workout = entry.workout, workout.endDate != nil else { continue }
+            guard let workout = entry.workout, workout.endDate != nil,
+                  entry.measurement == .reps else { continue }
             for set in entry.completedSets where !set.isWarmup && set.reps > 0 && set.weight > 0 {
                 events.append(SetEvent(
                     uuid: entry.exerciseUUID,
@@ -222,7 +229,7 @@ enum ProgressCalculator {
             guard date >= historyStart else { continue }
             let group = entry.exercise?.muscleGroup ?? .other
             let hardSets = entry.orderedSets
-                .filter { $0.isCompleted && !$0.isWarmup && $0.reps > 0 }
+                .filter { $0.isCompleted && !$0.isWarmup && ($0.reps > 0 || $0.durationSeconds > 0) }
                 .count
             guard hardSets > 0 else { continue }
             if date >= currentWeek.start {

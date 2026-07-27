@@ -11,7 +11,7 @@ enum CSVExporter {
     /// Writes every set of the given workouts to a CSV file in the temporary
     /// directory and returns its URL.
     static func export(workouts: [Workout]) throws -> URL {
-        var lines = ["date,workout,exercise,set,warmup,weight,reps,completed"]
+        var lines = ["date,workout,exercise,set,warmup,type,superset,weight,reps,duration_seconds,completed"]
 
         for workout in workouts.sorted(by: { $0.startDate < $1.startDate }) {
             let date = dateFormatter.string(from: workout.startDate)
@@ -23,8 +23,11 @@ enum CSVExporter {
                         exercise.exerciseName,
                         "\(set.orderIndex + 1)",
                         set.isWarmup ? "yes" : "no",
+                        set.type.rawValue,
+                        exercise.supersetGroup.map { "\($0)" } ?? "",
                         Format.editableWeight(set.weight),
                         "\(set.reps)",
+                        "\(set.durationSeconds)",
                         set.isCompleted ? "yes" : "no",
                     ]
                     lines.append(fields.map(escape).joined(separator: ","))

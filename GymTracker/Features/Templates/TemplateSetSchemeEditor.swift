@@ -10,7 +10,10 @@ struct TemplateSetSchemeEditor: View {
         List {
             Section("Target Sets") {
                 ForEach(templateExercise.orderedSets) { set in
-                    TemplateSetRow(set: set)
+                    TemplateSetRow(
+                        set: set,
+                        measurement: templateExercise.exercise?.measurement ?? .reps
+                    )
                 }
                 .onDelete { offsets in
                     deleteSets(at: offsets)
@@ -34,7 +37,8 @@ struct TemplateSetSchemeEditor: View {
         let set = TemplateSet(
             orderIndex: nextIndex,
             targetReps: last?.targetReps ?? 10,
-            targetWeight: last?.targetWeight ?? 0
+            targetWeight: last?.targetWeight ?? 0,
+            targetDurationSeconds: last?.targetDurationSeconds ?? 0
         )
         set.templateExercise = templateExercise
         context.insert(set)
@@ -56,11 +60,13 @@ struct TemplateSetSchemeEditor: View {
 
 private struct TemplateSetRow: View {
     let set: TemplateSet
+    let measurement: ExerciseMeasurement
 
     @Environment(AppSettings.self) private var settings
 
     @State private var repsText = ""
     @State private var weightText = ""
+    @State private var durationText = ""
 
     var body: some View {
         HStack(spacing: 10) {
@@ -78,26 +84,43 @@ private struct TemplateSetRow: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            TextField("10", text: $repsText)
-                .keyboardType(.numberPad)
-                .multilineTextAlignment(.center)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 56)
-            Text("reps")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if measurement == .duration {
+                TextField("0:30", text: $durationText)
+                    .keyboardType(.numbersAndPunctuation)
+                    .multilineTextAlignment(.center)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 64)
+                Text("min:sec")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                TextField("10", text: $repsText)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.center)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 56)
+                Text("reps")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Spacer()
         }
         .onAppear {
             weightText = set.targetWeight > 0 ? Format.editableWeight(set.targetWeight) : ""
             repsText = "\(set.targetReps)"
+            durationText = set.targetDurationSeconds > 0
+                ? Format.editableDuration(set.targetDurationSeconds)
+                : ""
         }
         .onChange(of: weightText) { _, newValue in
             set.targetWeight = Format.parseWeight(newValue)
         }
         .onChange(of: repsText) { _, newValue in
             set.targetReps = Int(newValue) ?? 0
+        }
+        .onChange(of: durationText) { _, newValue in
+            set.targetDurationSeconds = Format.parseDuration(newValue)
         }
     }
 }

@@ -7,7 +7,9 @@ import SwiftData
 /// re-importing the same file is a no-op.
 @MainActor
 enum BackupService {
-    static let currentFormatVersion = 1
+    /// 1 = v1.6 original; 2 adds measurement, superset groups, set types and
+    /// durations — all optional, so either version reads under this decoder.
+    static let currentFormatVersion = 2
 
     /// Matching two dates through a JSON round-trip: encoding keeps
     /// millisecond precision while the store keeps sub-microsecond, so
@@ -47,6 +49,7 @@ enum BackupService {
         var isArchived: Bool
         var notes: String
         var createdAt: Date
+        var measurementRaw: String?
     }
 
     struct TemplateDTO: Codable {
@@ -61,6 +64,7 @@ enum BackupService {
         var orderIndex: Int
         var exerciseName: String
         var exerciseUUID: UUID?
+        var supersetGroup: Int?
         var sets: [TemplateSetDTO]
     }
 
@@ -68,6 +72,7 @@ enum BackupService {
         var orderIndex: Int
         var targetReps: Int
         var targetWeight: Double
+        var targetDurationSeconds: Int?
     }
 
     struct WorkoutDTO: Codable {
@@ -85,6 +90,7 @@ enum BackupService {
         var exerciseName: String
         var exerciseUUID: UUID?
         var notes: String
+        var supersetGroup: Int?
         var sets: [SetDTO]
     }
 
@@ -95,6 +101,8 @@ enum BackupService {
         var isCompleted: Bool
         var completedAt: Date?
         var isWarmup: Bool
+        var typeRaw: String?
+        var durationSeconds: Int?
     }
 
     struct BodyWeightDTO: Codable {
@@ -159,7 +167,8 @@ enum BackupService {
                     isCustom: exercise.isCustom,
                     isArchived: exercise.isArchived,
                     notes: exercise.notes,
-                    createdAt: exercise.createdAt
+                    createdAt: exercise.createdAt,
+                    measurementRaw: exercise.measurementRaw
                 )
             },
             templates: templates.map { template in
@@ -173,11 +182,13 @@ enum BackupService {
                             orderIndex: templateExercise.orderIndex,
                             exerciseName: templateExercise.exerciseName,
                             exerciseUUID: templateExercise.exerciseUUID,
+                            supersetGroup: templateExercise.supersetGroup,
                             sets: templateExercise.orderedSets.map { set in
                                 TemplateSetDTO(
                                     orderIndex: set.orderIndex,
                                     targetReps: set.targetReps,
-                                    targetWeight: set.targetWeight
+                                    targetWeight: set.targetWeight,
+                                    targetDurationSeconds: set.targetDurationSeconds
                                 )
                             }
                         )
@@ -198,6 +209,7 @@ enum BackupService {
                             exerciseName: workoutExercise.exerciseName,
                             exerciseUUID: workoutExercise.exerciseUUID,
                             notes: workoutExercise.notes,
+                            supersetGroup: workoutExercise.supersetGroup,
                             sets: workoutExercise.orderedSets.map { set in
                                 SetDTO(
                                     orderIndex: set.orderIndex,
@@ -205,7 +217,9 @@ enum BackupService {
                                     weight: set.weight,
                                     isCompleted: set.isCompleted,
                                     completedAt: set.completedAt,
-                                    isWarmup: set.isWarmup
+                                    isWarmup: set.isWarmup,
+                                    typeRaw: set.typeRaw,
+                                    durationSeconds: set.durationSeconds
                                 )
                             }
                         )
@@ -305,7 +319,8 @@ enum BackupService {
                     muscleGroup: MuscleGroup(rawValue: dto.muscleGroupRaw) ?? .other,
                     equipment: Equipment(rawValue: dto.equipmentRaw) ?? .other,
                     isCustom: dto.isCustom,
-                    notes: dto.notes
+                    notes: dto.notes,
+                    measurement: dto.measurementRaw.flatMap(ExerciseMeasurement.init) ?? .reps
                 )
                 exercise.isArchived = dto.isArchived
                 exercise.createdAt = dto.createdAt
@@ -359,6 +374,7 @@ enum BackupService {
                         exerciseUUID: mappedUUID
                     )
                 }
+                templateExercise.supersetGroup = exerciseDTO.supersetGroup
                 templateExercise.template = template
                 context.insert(templateExercise)
 
@@ -366,7 +382,8 @@ enum BackupService {
                     let planned = TemplateSet(
                         orderIndex: setDTO.orderIndex,
                         targetReps: setDTO.targetReps,
-                        targetWeight: setDTO.targetWeight
+                        targetWeight: setDTO.targetWeight,
+                        targetDurationSeconds: setDTO.targetDurationSeconds ?? 0
                     )
                     planned.templateExercise = templateExercise
                     context.insert(planned)
@@ -425,6 +442,7 @@ enum BackupService {
                     )
                 }
                 workoutExercise.notes = exerciseDTO.notes
+                workoutExercise.supersetGroup = exerciseDTO.supersetGroup
                 workoutExercise.workout = workout
                 context.insert(workoutExercise)
 
@@ -433,7 +451,9 @@ enum BackupService {
                         orderIndex: setDTO.orderIndex,
                         reps: setDTO.reps,
                         weight: setDTO.weight,
-                        isWarmup: setDTO.isWarmup
+                        isWarmup: setDTO.isWarmup,
+                        type: setDTO.typeRaw.flatMap(SetType.init) ?? .working,
+                        durationSeconds: setDTO.durationSeconds ?? 0
                     )
                     set.isCompleted = setDTO.isCompleted
                     set.completedAt = setDTO.completedAt

@@ -24,7 +24,8 @@ enum SeedService {
                     uuid: seed.uuid,
                     name: seed.name,
                     muscleGroup: seed.muscleGroup,
-                    equipment: seed.equipment
+                    equipment: seed.equipment,
+                    measurement: seed.measurement
                 )
                 context.insert(exercise)
             }

@@ -17,11 +17,16 @@ struct SetRowView: View {
 
     @State private var repsText = ""
     @State private var weightText = ""
+    @State private var durationText = ""
     @State private var showingPlateCalculator = false
     @FocusState private var focusedField: Field?
 
     private enum Field {
-        case weight, reps
+        case weight, reps, duration
+    }
+
+    private var measurement: ExerciseMeasurement {
+        set.workoutExercise?.measurement ?? .reps
     }
 
     var body: some View {
@@ -36,6 +41,23 @@ struct SetRowView: View {
         }
         .listRowBackground(set.isCompleted ? Color.green.opacity(0.08) : Color.clear)
         .contextMenu {
+            if !set.isWarmup {
+                Menu {
+                    ForEach(SetType.allCases) { type in
+                        Button {
+                            set.type = type
+                        } label: {
+                            if set.type == type {
+                                Label(type.displayName, systemImage: "checkmark")
+                            } else {
+                                Text(type.displayName)
+                            }
+                        }
+                    }
+                } label: {
+                    Label("Set Type", systemImage: "square.stack.3d.up")
+                }
+            }
             Button {
                 set.isWarmup.toggle()
             } label: {
@@ -56,6 +78,7 @@ struct SetRowView: View {
         .onAppear {
             weightText = set.weight > 0 ? Format.editableWeight(set.weight) : ""
             repsText = set.reps > 0 ? "\(set.reps)" : ""
+            durationText = set.durationSeconds > 0 ? Format.editableDuration(set.durationSeconds) : ""
         }
         .onChange(of: weightText) { _, newValue in
             set.weight = Format.parseWeight(newValue)
@@ -63,20 +86,39 @@ struct SetRowView: View {
         .onChange(of: repsText) { _, newValue in
             set.reps = Int(newValue) ?? 0
         }
+        .onChange(of: durationText) { _, newValue in
+            set.durationSeconds = Format.parseDuration(newValue)
+        }
     }
 
-    /// Position among working sets, so generated warm-ups don't shift the
-    /// visible numbering to "4, 5, 6".
+    /// Position among plain working sets, so warm-ups and drop sets don't
+    /// shift the visible numbering.
     private var workingSetNumber: Int {
-        let peers = (set.workoutExercise?.orderedSets ?? []).filter { !$0.isWarmup }
+        let peers = (set.workoutExercise?.orderedSets ?? [])
+            .filter { !$0.isWarmup && $0.type.marker == nil }
         return (peers.firstIndex(where: { $0 === set }) ?? set.orderIndex) + 1
+    }
+
+    private var indexLabel: String {
+        if set.isWarmup { return "W" }
+        return set.type.marker ?? "\(workingSetNumber)"
+    }
+
+    private var indexColor: Color {
+        if set.isWarmup { return .orange }
+        switch set.type {
+        case .working: return .secondary
+        case .dropSet: return .purple
+        case .failure: return .red
+        case .amrap: return .blue
+        }
     }
 
     private var fieldsRow: some View {
         HStack(spacing: 10) {
-            Text(set.isWarmup ? "W" : "\(workingSetNumber)")
+            Text(indexLabel)
                 .font(.caption.monospacedDigit().bold())
-                .foregroundStyle(set.isWarmup ? Color.orange : Color.secondary)
+                .foregroundStyle(indexColor)
                 .frame(width: 24)
 
             TextField(weightPlaceholder, text: $weightText)
@@ -89,15 +131,27 @@ struct SetRowView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            TextField(repsPlaceholder, text: $repsText)
-                .keyboardType(.numberPad)
-                .focused($focusedField, equals: .reps)
-                .multilineTextAlignment(.center)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 56)
-            Text("reps")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if measurement == .duration {
+                TextField(durationPlaceholder, text: $durationText)
+                    .keyboardType(.numbersAndPunctuation)
+                    .focused($focusedField, equals: .duration)
+                    .multilineTextAlignment(.center)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 64)
+                Text("min:sec")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                TextField(repsPlaceholder, text: $repsText)
+                    .keyboardType(.numberPad)
+                    .focused($focusedField, equals: .reps)
+                    .multilineTextAlignment(.center)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 56)
+                Text("reps")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Spacer()
 
@@ -217,6 +271,20 @@ struct SetRowView: View {
         return "\(lastSet.reps)"
     }
 
+    private var durationPlaceholder: String {
+        guard let lastSet, lastSet.durationSeconds > 0 else { return "0:30" }
+        return Format.editableDuration(lastSet.durationSeconds)
+    }
+
+    /// In a superset, rest comes after the round — only the group's last
+    /// exercise auto-starts the timer.
+    private var shouldAutoStartRest: Bool {
+        guard let workoutExercise = set.workoutExercise,
+              let group = workoutExercise.supersetGroup,
+              let workout = workoutExercise.workout else { return true }
+        return workout.orderedExercises.last(where: { $0.supersetGroup == group }) === workoutExercise
+    }
+
     private func toggleCompleted() {
         if set.isCompleted {
             set.isCompleted = false
@@ -226,7 +294,7 @@ struct SetRowView: View {
             set.isCompleted = true
             set.completedAt = Date.now
             focusedField = nil
-            if settings.autoStartRestTimer && !set.isWarmup {
+            if settings.autoStartRestTimer && !set.isWarmup && shouldAutoStartRest {
                 restTimer.start(duration: settings.restDuration(for: set.workoutExercise?.exerciseUUID))
             }
         }
@@ -244,7 +312,12 @@ struct SetRowView: View {
                 weightText = Format.editableWeight(lastSet.weight)
             }
         }
-        if set.reps <= 0 {
+        if measurement == .duration {
+            if set.durationSeconds <= 0, let lastSet, lastSet.durationSeconds > 0 {
+                set.durationSeconds = lastSet.durationSeconds
+                durationText = Format.editableDuration(lastSet.durationSeconds)
+            }
+        } else if set.reps <= 0 {
             if let suggestion, suggestion.reps > 0 {
                 set.reps = suggestion.reps
                 repsText = "\(suggestion.reps)"

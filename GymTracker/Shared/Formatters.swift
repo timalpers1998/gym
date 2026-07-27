@@ -31,4 +31,21 @@ enum Format {
     static func parseWeight(_ text: String) -> Double {
         Double(text.replacingOccurrences(of: ",", with: ".")) ?? 0
     }
+
+    /// Editable representation of a set duration: "45" stays seconds-only
+    /// under a minute, longer runs show "1:30".
+    static func editableDuration(_ seconds: Int) -> String {
+        guard seconds >= 60 else { return String(seconds) }
+        return "\(seconds / 60):" + String(format: "%02d", seconds % 60)
+    }
+
+    /// Parses "90" (seconds) or "1:30" (minutes:seconds) from a set field.
+    static func parseDuration(_ text: String) -> Int {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        let parts = trimmed.split(separator: ":")
+        if parts.count == 2, let minutes = Int(parts[0]), let seconds = Int(parts[1]) {
+            return max(0, minutes * 60 + seconds)
+        }
+        return max(0, Int(trimmed) ?? 0)
+    }
 }

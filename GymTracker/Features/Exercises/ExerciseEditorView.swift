@@ -14,6 +14,7 @@ struct ExerciseEditorView: View {
     @State private var name = ""
     @State private var muscleGroup: MuscleGroup = .other
     @State private var equipment: Equipment = .other
+    @State private var measurement: ExerciseMeasurement = .reps
     @State private var notes = ""
 
     var body: some View {
@@ -31,6 +32,16 @@ struct ExerciseEditorView: View {
                     ForEach(Equipment.allCases) { item in
                         Text(item.displayName).tag(item)
                     }
+                }
+
+                Section {
+                    Picker("Logged as", selection: $measurement) {
+                        ForEach(ExerciseMeasurement.allCases) { option in
+                            Text(option.displayName).tag(option)
+                        }
+                    }
+                } footer: {
+                    Text("Duration exercises (planks, carries, holds) log time under load instead of reps.")
                 }
 
                 Section("Notes") {
@@ -59,6 +70,7 @@ struct ExerciseEditorView: View {
                     name = exercise.name
                     muscleGroup = exercise.muscleGroup
                     equipment = exercise.equipment
+                    measurement = exercise.measurement
                     notes = exercise.notes
                 } else if name.isEmpty {
                     name = initialName.trimmingCharacters(in: .whitespaces)
@@ -73,6 +85,7 @@ struct ExerciseEditorView: View {
             exercise.name = trimmed
             exercise.muscleGroup = muscleGroup
             exercise.equipment = equipment
+            exercise.measurement = measurement
             exercise.notes = notes
             try? context.save()
         } else {
@@ -81,7 +94,8 @@ struct ExerciseEditorView: View {
                 muscleGroup: muscleGroup,
                 equipment: equipment,
                 isCustom: true,
-                notes: notes
+                notes: notes,
+                measurement: measurement
             )
             context.insert(created)
             try? context.save()
