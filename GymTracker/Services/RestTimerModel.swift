@@ -30,6 +30,11 @@ final class RestTimerModel {
         } else {
             defaults.removeObject(forKey: Keys.endDate)
             defaults.removeObject(forKey: Keys.totalDuration)
+            // A Live Activity from a previous run may be lingering in its
+            // stale "Done" state; dismiss it.
+            Task {
+                await RestTimerLiveActivityController.endAll()
+            }
         }
     }
 
@@ -63,7 +68,8 @@ final class RestTimerModel {
     func start(duration: Int? = nil) {
         let seconds = TimeInterval(duration ?? settings.restDurationSeconds)
         totalDuration = seconds
-        let end = Date.now.addingTimeInterval(seconds)
+        let startDate = Date.now
+        let end = startDate.addingTimeInterval(seconds)
         endDate = end
         persist()
         Task {
@@ -72,6 +78,7 @@ final class RestTimerModel {
                 await NotificationService.requestAuthorizationIfNeeded()
             }
             await NotificationService.scheduleRestDoneNotification(at: end)
+            await RestTimerLiveActivityController.start(startDate: startDate, endDate: end)
         }
     }
 
@@ -83,6 +90,7 @@ final class RestTimerModel {
         persist()
         Task {
             await NotificationService.scheduleRestDoneNotification(at: end)
+            await RestTimerLiveActivityController.update(endDate: end)
         }
     }
 
@@ -91,6 +99,9 @@ final class RestTimerModel {
         totalDuration = 0
         persist()
         NotificationService.cancelRestDoneNotification()
+        Task {
+            await RestTimerLiveActivityController.endAll()
+        }
     }
 
     /// Called when the countdown reaches zero naturally; the notification has
@@ -99,5 +110,8 @@ final class RestTimerModel {
         endDate = nil
         totalDuration = 0
         persist()
+        Task {
+            await RestTimerLiveActivityController.endAll()
+        }
     }
 }
