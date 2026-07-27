@@ -2,9 +2,21 @@ import Foundation
 
 /// A recommended next target for a set.
 struct ProgressionSuggestion {
+    enum Kind {
+        /// The smallest 10RM step up over last session.
+        case progress
+        /// Repeat last session's numbers (previous set underperformed or was at failure).
+        case hold
+        /// Re-entry at ~90% after a training gap.
+        case comeback
+        /// ~85% back-off after a detected plateau.
+        case deload
+    }
+
     let weight: Double
     let reps: Int
     let estTenRM: Double
+    var kind: Kind = .progress
 }
 
 /// Proposes the next set target as the smallest increase in estimated 10RM
@@ -48,7 +60,7 @@ enum ProgressionCalculator {
 
         let baseline = estimatedTenRepMax(weight: lastWeight, reps: lastReps)
         guard allowIncrease else {
-            return ProgressionSuggestion(weight: lastWeight, reps: lastReps, estTenRM: baseline)
+            return ProgressionSuggestion(weight: lastWeight, reps: lastReps, estTenRM: baseline, kind: .hold)
         }
         guard increment > 0 else { return nil }
 
@@ -91,6 +103,34 @@ enum ProgressionCalculator {
             }
         }
         return bestHold
+    }
+
+    /// Re-entry target after a training gap: ~90% of the last load at the
+    /// same reps, rounded to the exercise's step.
+    static func comeback(lastWeight: Double, lastReps: Int, step: Double) -> ProgressionSuggestion? {
+        backOff(lastWeight: lastWeight, lastReps: lastReps, step: step, factor: 0.9, kind: .comeback)
+    }
+
+    /// Plateau back-off: ~85% of the last load at the same reps.
+    static func deload(lastWeight: Double, lastReps: Int, step: Double) -> ProgressionSuggestion? {
+        backOff(lastWeight: lastWeight, lastReps: lastReps, step: step, factor: 0.85, kind: .deload)
+    }
+
+    private static func backOff(
+        lastWeight: Double,
+        lastReps: Int,
+        step: Double,
+        factor: Double,
+        kind: ProgressionSuggestion.Kind
+    ) -> ProgressionSuggestion? {
+        guard lastWeight > 0, lastReps > 0, step > 0 else { return nil }
+        let weight = max(step, (lastWeight * factor / step).rounded() * step)
+        return ProgressionSuggestion(
+            weight: weight,
+            reps: lastReps,
+            estTenRM: estimatedTenRepMax(weight: weight, reps: lastReps),
+            kind: kind
+        )
     }
 
     /// At the rep cap, weight must rise; reps re-enter at the lowest count

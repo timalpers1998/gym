@@ -24,6 +24,10 @@ struct ProgressTabView: View {
         ProgressCalculator.recentPRs(entries: allEntries, limit: 5)
     }
 
+    private var muscleVolumes: [MuscleWeekVolume] {
+        ProgressCalculator.muscleWeekVolumes(entries: allEntries)
+    }
+
     var body: some View {
         List {
             Section {
@@ -57,6 +61,28 @@ struct ProgressTabView: View {
                 }
             }
 
+            if !muscleVolumes.isEmpty {
+                Section("Sets per Muscle · This Week") {
+                    ForEach(muscleVolumes) { volume in
+                        HStack(spacing: 12) {
+                            Text(volume.group.displayName)
+                                .font(.subheadline)
+                                .frame(width: 88, alignment: .leading)
+                            ProgressView(value: min(1, Double(volume.thisWeek) / 20))
+                                .tint(volumeTint(for: volume.thisWeek))
+                            Text("\(volume.thisWeek)")
+                                .font(.subheadline.bold())
+                                .monospacedDigit()
+                            Text("Ø \(volume.weeklyAverage.formatted(.number.precision(.fractionLength(0...1))))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                                .frame(width: 44, alignment: .trailing)
+                        }
+                    }
+                }
+            }
+
             BodyWeightSection()
 
             Section("Recent PRs") {
@@ -80,6 +106,13 @@ struct ProgressTabView: View {
             }
         }
         .navigationTitle("Progress")
+    }
+
+    /// Tint against the ~10–20 hard-sets-per-week hypertrophy landmark.
+    private func volumeTint(for sets: Int) -> Color {
+        if sets < 10 { return .orange }
+        if sets <= 20 { return .green }
+        return .red
     }
 
     private func exercise(for pr: RecentPR) -> Exercise? {

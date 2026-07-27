@@ -3,7 +3,7 @@ import SwiftData
 
 enum ModelContainerFactory {
     static func make(inMemory: Bool = false) -> ModelContainer {
-        let schema = Schema(versionedSchema: GymSchemaV2.self)
+        let schema = Schema(versionedSchema: GymSchemaV3.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             return try ModelContainer(

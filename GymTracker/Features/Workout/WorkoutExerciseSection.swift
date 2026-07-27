@@ -9,6 +9,8 @@ struct LastSetSnapshot {
     let reps: Int
     let isCompleted: Bool
     let isWarmup: Bool
+    /// Reps in reserve recorded for the set last session, if any.
+    var rir: Int? = nil
 }
 
 struct WorkoutExerciseSection: View {
@@ -21,10 +23,27 @@ struct WorkoutExerciseSection: View {
     /// used for the "last time" header line and field placeholders.
     @State private var lastSets: [LastSetSnapshot] = []
 
+    /// RIR recorded this session, keyed by set orderIndex.
+    @State private var rirBySetIndex: [Int: Int] = [:]
+
+    /// Start of the most recent previous session with this exercise.
+    @State private var lastWorkoutDate: Date? = nil
+
+    /// True when the best est. 10RM has been flat or falling for three sessions.
+    @State private var stalled = false
+
     var body: some View {
         Section {
             ForEach(workoutExercise.orderedSets) { set in
-                SetRowView(set: set, lastSet: lastSet(for: set), suggestion: suggestion(for: set))
+                SetRowView(
+                    set: set,
+                    lastSet: lastSet(for: set),
+                    suggestion: suggestion(for: set),
+                    rir: rirBySetIndex[set.orderIndex],
+                    onSelectRIR: { value in
+                        setRIR(value, for: set)
+                    }
+                )
             }
             .onDelete { offsets in
                 deleteSets(at: offsets)
@@ -84,6 +103,7 @@ struct WorkoutExerciseSection: View {
         }
         .onAppear {
             loadLastSets()
+            loadEfforts()
         }
     }
 
@@ -179,6 +199,8 @@ struct WorkoutExerciseSection: View {
             step: settings.progressionStep(for: workoutExercise.exerciseUUID),
             context: context
         )
+        // Set indexes shifted; re-sync the recorded-effort cache.
+        loadEfforts()
     }
 
     /// Target for the next pending working set: the smallest estimated-10RM
@@ -189,10 +211,28 @@ struct WorkoutExerciseSection: View {
               current === set else { return nil }
         guard let baseline = lastSet(for: set),
               baseline.isCompleted, !baseline.isWarmup, baseline.reps > 0 else { return nil }
+        let step = settings.progressionStep(for: workoutExercise.exerciseUUID)
+
+        if let lastDate = lastWorkoutDate,
+           Date.now.timeIntervalSince(lastDate) > 14 * 86_400,
+           let comeback = ProgressionCalculator.comeback(
+               lastWeight: baseline.weight, lastReps: baseline.reps, step: step
+           ) {
+            return comeback
+        }
+        if stalled,
+           let deload = ProgressionCalculator.deload(
+               lastWeight: baseline.weight, lastReps: baseline.reps, step: step
+           ) {
+            return deload
+        }
+
+        // An easy last session (3+ reps in reserve) earns a double step.
+        let increment = (baseline.rir ?? 0) >= 3 ? step * 2 : step
         return ProgressionCalculator.nextProgression(
             lastWeight: baseline.weight,
             lastReps: baseline.reps,
-            increment: settings.progressionStep(for: workoutExercise.exerciseUUID),
+            increment: increment,
             allowIncrease: allowIncrease(before: set)
         )
     }
@@ -203,8 +243,10 @@ struct WorkoutExerciseSection: View {
         let previous = workoutExercise.orderedSets
             .filter { $0.isCompleted && !$0.isWarmup && $0.orderIndex < set.orderIndex }
             .max { $0.orderIndex < $1.orderIndex }
-        guard let previous,
-              let baseline = lastSet(for: previous),
+        guard let previous else { return true }
+        // A set taken to failure this session means no added load on the next.
+        if rirBySetIndex[previous.orderIndex] == 0 { return false }
+        guard let baseline = lastSet(for: previous),
               baseline.isCompleted, !baseline.isWarmup, baseline.reps > 0 else { return true }
         if baseline.weight <= 0 {
             return previous.reps >= baseline.reps
@@ -223,19 +265,92 @@ struct WorkoutExerciseSection: View {
         guard let entries = try? context.fetch(descriptor) else { return }
 
         let currentWorkout = workoutExercise.workout
-        let previous = entries
-            .filter { entry in
-                entry.workout?.endDate != nil && entry.workout !== currentWorkout
+        let history = entries
+            .filter { $0.workout?.endDate != nil && $0.workout !== currentWorkout }
+            .sorted { ($0.workout?.startDate ?? .distantPast) > ($1.workout?.startDate ?? .distantPast) }
+
+        let previous = history.first
+        lastWorkoutDate = previous?.workout?.startDate
+
+        var lastEfforts: [Int: Int] = [:]
+        if let previousStart = previous?.workout?.startDate {
+            let effortDescriptor = FetchDescriptor<SetEffort>(
+                predicate: #Predicate<SetEffort> {
+                    $0.workoutStartDate == previousStart && $0.exerciseUUID == id
+                }
+            )
+            for effort in (try? context.fetch(effortDescriptor)) ?? [] {
+                lastEfforts[effort.setOrderIndex] = effort.rir
             }
-            .max { ($0.workout?.startDate ?? .distantPast) < ($1.workout?.startDate ?? .distantPast) }
+        }
+
         lastSets = (previous?.orderedSets ?? []).map { set in
             LastSetSnapshot(
                 weight: set.weight,
                 reps: set.reps,
                 isCompleted: set.isCompleted,
-                isWarmup: set.isWarmup
+                isWarmup: set.isWarmup,
+                rir: lastEfforts[set.orderIndex]
             )
         }
+
+        // Plateau: best est. 10RM flat or falling across three sessions. The
+        // last guard skips detection right after a big back-off, so a deload
+        // isn't suggested again while rebuilding.
+        let bests = history.prefix(3).map(sessionBestTenRM)
+        stalled = bests.count >= 3
+            && bests.allSatisfy { $0 > 0 }
+            && bests[0] <= bests[1] + 0.25
+            && bests[1] <= bests[2] + 0.25
+            && bests[0] >= bests[1] * 0.92
+    }
+
+    private func sessionBestTenRM(_ entry: WorkoutExercise) -> Double {
+        entry.orderedSets
+            .filter { $0.isCompleted && !$0.isWarmup && $0.reps > 0 && $0.weight > 0 }
+            .map { ProgressionCalculator.estimatedTenRepMax(weight: $0.weight, reps: $0.reps) }
+            .max() ?? 0
+    }
+
+    private func loadEfforts() {
+        guard let workout = workoutExercise.workout else { return }
+        let start = workout.startDate
+        let uuid: UUID? = workoutExercise.exerciseUUID
+        let descriptor = FetchDescriptor<SetEffort>(
+            predicate: #Predicate<SetEffort> {
+                $0.workoutStartDate == start && $0.exerciseUUID == uuid
+            }
+        )
+        let efforts = (try? context.fetch(descriptor)) ?? []
+        rirBySetIndex = Dictionary(
+            efforts.map { ($0.setOrderIndex, $0.rir) },
+            uniquingKeysWith: { first, _ in first }
+        )
+    }
+
+    private func setRIR(_ value: Int, for set: SetEntry) {
+        guard let workout = workoutExercise.workout else { return }
+        let start = workout.startDate
+        let uuid: UUID? = workoutExercise.exerciseUUID
+        let index = set.orderIndex
+        let descriptor = FetchDescriptor<SetEffort>(
+            predicate: #Predicate<SetEffort> {
+                $0.workoutStartDate == start && $0.exerciseUUID == uuid && $0.setOrderIndex == index
+            }
+        )
+        if let existing = (try? context.fetch(descriptor))?.first {
+            existing.rir = value
+        } else {
+            let effort = SetEffort(
+                workoutStartDate: start,
+                exerciseUUID: uuid,
+                setOrderIndex: index,
+                rir: value
+            )
+            context.insert(effort)
+        }
+        try? context.save()
+        rirBySetIndex[index] = value
     }
 
     private func deleteSets(at offsets: IndexSet) {

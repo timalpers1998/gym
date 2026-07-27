@@ -97,8 +97,7 @@ struct WorkoutDetailView: View {
             titleVisibility: .visible
         ) {
             Button("Delete", role: .destructive) {
-                context.delete(workout)
-                try? context.save()
+                WorkoutFactory.delete(workout, context: context)
                 WidgetDataStore.refresh(context: context)
                 dismiss()
             }

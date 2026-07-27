@@ -148,6 +148,10 @@ enum WorkoutFactory {
         }
         guard !ramp.isEmpty else { return }
 
+        // Recorded efforts key off the set index — shift them in lockstep.
+        for effort in efforts(for: workoutExercise, context: context) {
+            effort.setOrderIndex += ramp.count
+        }
         for (offset, set) in workoutExercise.orderedSets.enumerated() {
             set.orderIndex = ramp.count + offset
         }
@@ -160,18 +164,30 @@ enum WorkoutFactory {
     }
 
     /// Drops sets never ticked off during the session; exercises left with no
-    /// sets are removed entirely.
+    /// sets are removed entirely. Recorded efforts are renumbered/deleted in
+    /// lockstep with the sets they describe.
     static func removeIncompleteSets(in workout: Workout, context: ModelContext) {
         for workoutExercise in workout.orderedExercises {
             let ordered = workoutExercise.orderedSets
             let dropped = ordered.filter { !$0.isCompleted }
             guard !dropped.isEmpty else { continue }
+
+            let exerciseEfforts = efforts(for: workoutExercise, context: context)
+            let droppedIndexes = Set(dropped.map(\.orderIndex))
+            for effort in exerciseEfforts where droppedIndexes.contains(effort.setOrderIndex) {
+                context.delete(effort)
+            }
+
             dropped.forEach(context.delete)
             let kept = ordered.filter(\.isCompleted)
             if kept.isEmpty {
                 context.delete(workoutExercise)
             } else {
                 for (index, set) in kept.enumerated() {
+                    if set.orderIndex != index,
+                       let effort = exerciseEfforts.first(where: { $0.setOrderIndex == set.orderIndex }) {
+                        effort.setOrderIndex = index
+                    }
                     set.orderIndex = index
                 }
             }
@@ -181,6 +197,29 @@ enum WorkoutFactory {
             exercise.orderIndex = index
         }
         try? context.save()
+    }
+
+    /// Deletes a workout together with the RIR efforts recorded for it.
+    static func delete(_ workout: Workout, context: ModelContext) {
+        let start = workout.startDate
+        let descriptor = FetchDescriptor<SetEffort>(
+            predicate: #Predicate<SetEffort> { $0.workoutStartDate == start }
+        )
+        for effort in (try? context.fetch(descriptor)) ?? [] {
+            context.delete(effort)
+        }
+        context.delete(workout)
+        try? context.save()
+    }
+
+    private static func efforts(for workoutExercise: WorkoutExercise, context: ModelContext) -> [SetEffort] {
+        guard let workout = workoutExercise.workout else { return [] }
+        let start = workout.startDate
+        let uuid: UUID? = workoutExercise.exerciseUUID
+        let descriptor = FetchDescriptor<SetEffort>(
+            predicate: #Predicate<SetEffort> { $0.workoutStartDate == start && $0.exerciseUUID == uuid }
+        )
+        return (try? context.fetch(descriptor)) ?? []
     }
 
     static func finish(_ workout: Workout, context: ModelContext) {

@@ -101,8 +101,7 @@ struct ActiveWorkoutView: View {
         guard !workout.orderedExercises.isEmpty else {
             // Nothing was actually done — a finished empty shell would count
             // toward streaks, the widget, and Apple Health.
-            context.delete(workout)
-            try? context.save()
+            WorkoutFactory.delete(workout, context: context)
             return
         }
         WorkoutFactory.finish(workout, context: context)
@@ -115,8 +114,7 @@ struct ActiveWorkoutView: View {
 
     private func cancelWorkout() {
         restTimer.skip()
-        context.delete(workout)
-        try? context.save()
+        WorkoutFactory.delete(workout, context: context)
     }
 }
 

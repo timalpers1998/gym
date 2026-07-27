@@ -201,4 +201,57 @@ enum ProgressCalculator {
         }
         return streak
     }
+
+    /// Hard sets (completed, non-warm-up, reps > 0) per muscle group: current
+    /// week plus the average of the four preceding weeks.
+    static func muscleWeekVolumes(
+        entries: [WorkoutExercise],
+        calendar: Calendar = .current,
+        now: Date = Date.now
+    ) -> [MuscleWeekVolume] {
+        guard let currentWeek = calendar.dateInterval(of: .weekOfYear, for: now),
+              let historyStart = calendar.date(byAdding: .weekOfYear, value: -4, to: currentWeek.start)
+        else { return [] }
+
+        var thisWeek: [MuscleGroup: Int] = [:]
+        var previousWeeks: [MuscleGroup: Int] = [:]
+
+        for entry in entries {
+            guard let workout = entry.workout, workout.endDate != nil else { continue }
+            let date = workout.startDate
+            guard date >= historyStart else { continue }
+            let group = entry.exercise?.muscleGroup ?? .other
+            let hardSets = entry.orderedSets
+                .filter { $0.isCompleted && !$0.isWarmup && $0.reps > 0 }
+                .count
+            guard hardSets > 0 else { continue }
+            if date >= currentWeek.start {
+                thisWeek[group, default: 0] += hardSets
+            } else {
+                previousWeeks[group, default: 0] += hardSets
+            }
+        }
+
+        let groups = Set(thisWeek.keys).union(previousWeeks.keys)
+        return groups
+            .map { group in
+                MuscleWeekVolume(
+                    group: group,
+                    thisWeek: thisWeek[group] ?? 0,
+                    weeklyAverage: Double(previousWeeks[group] ?? 0) / 4
+                )
+            }
+            .sorted {
+                if $0.thisWeek != $1.thisWeek { return $0.thisWeek > $1.thisWeek }
+                return $0.group.displayName < $1.group.displayName
+            }
+    }
+}
+
+struct MuscleWeekVolume: Identifiable {
+    let group: MuscleGroup
+    let thisWeek: Int
+    /// Mean hard sets per week over the four preceding weeks.
+    let weeklyAverage: Double
+    var id: MuscleGroup { group }
 }

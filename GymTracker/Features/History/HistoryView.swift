@@ -57,8 +57,7 @@ struct HistoryView: View {
     }
 
     private func delete(_ workout: Workout) {
-        context.delete(workout)
-        try? context.save()
+        WorkoutFactory.delete(workout, context: context)
         WidgetDataStore.refresh(context: context)
     }
 }

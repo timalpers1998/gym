@@ -29,11 +29,26 @@ enum GymSchemaV2: VersionedSchema {
     }
 }
 
+/// V3 adds SetEffort (RIR logging). V1 and V2 are both released and frozen;
+/// only additive changes via new entities are allowed.
+enum GymSchemaV3: VersionedSchema {
+    static var versionIdentifier: Schema.Version { Schema.Version(3, 0, 0) }
+
+    static var models: [any PersistentModel.Type] {
+        GymSchemaV2.models + [SetEffort.self]
+    }
+}
+
 enum GymMigrationPlan: SchemaMigrationPlan {
-    static var schemas: [any VersionedSchema.Type] { [GymSchemaV1.self, GymSchemaV2.self] }
+    static var schemas: [any VersionedSchema.Type] {
+        [GymSchemaV1.self, GymSchemaV2.self, GymSchemaV3.self]
+    }
 
     static var stages: [MigrationStage] {
-        [.lightweight(fromVersion: GymSchemaV1.self, toVersion: GymSchemaV2.self)]
+        [
+            .lightweight(fromVersion: GymSchemaV1.self, toVersion: GymSchemaV2.self),
+            .lightweight(fromVersion: GymSchemaV2.self, toVersion: GymSchemaV3.self),
+        ]
     }
 }
 
@@ -45,3 +60,4 @@ typealias Workout = GymSchemaV1.Workout
 typealias WorkoutExercise = GymSchemaV1.WorkoutExercise
 typealias SetEntry = GymSchemaV1.SetEntry
 typealias BodyWeightEntry = GymSchemaV2.BodyWeightEntry
+typealias SetEffort = GymSchemaV3.SetEffort
