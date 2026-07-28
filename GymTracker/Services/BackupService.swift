@@ -8,8 +8,10 @@ import SwiftData
 @MainActor
 enum BackupService {
     /// 1 = v1.6 original; 2 adds measurement, superset groups, set types and
-    /// durations — all optional, so either version reads under this decoder.
-    static let currentFormatVersion = 2
+    /// durations; 3 adds body measurements — all optional, so every older
+    /// version reads under this decoder. Progress photos are files on disk
+    /// and deliberately not part of the JSON document.
+    static let currentFormatVersion = 3
 
     /// Matching two dates through a JSON round-trip: encoding keeps
     /// millisecond precision while the store keeps sub-microsecond, so
@@ -37,7 +39,14 @@ enum BackupService {
         var workouts: [WorkoutDTO]
         var bodyWeight: [BodyWeightDTO]
         var efforts: [EffortDTO]
+        var measurements: [MeasurementDTO]?
         var settings: SettingsDTO?
+    }
+
+    struct MeasurementDTO: Codable {
+        var date: Date
+        var metricRaw: String
+        var valueCm: Double
     }
 
     struct ExerciseDTO: Codable {
@@ -132,6 +141,7 @@ enum BackupService {
         var workoutsAdded = 0
         var bodyWeightAdded = 0
         var effortsAdded = 0
+        var measurementsAdded = 0
         var skipped = 0
         var settingsApplied = false
     }
@@ -153,6 +163,9 @@ enum BackupService {
         )
         let efforts = try context.fetch(
             FetchDescriptor<SetEffort>(sortBy: [SortDescriptor(\.workoutStartDate)])
+        )
+        let measurements = try context.fetch(
+            FetchDescriptor<BodyMeasurement>(sortBy: [SortDescriptor(\.date)])
         )
 
         let document = BackupDocument(
@@ -233,6 +246,13 @@ enum BackupService {
                     exerciseUUID: effort.exerciseUUID,
                     setOrderIndex: effort.setOrderIndex,
                     rir: effort.rir
+                )
+            },
+            measurements: measurements.map { measurement in
+                MeasurementDTO(
+                    date: measurement.date,
+                    metricRaw: measurement.metricRaw,
+                    valueCm: measurement.valueCm
                 )
             },
             settings: SettingsDTO(
@@ -499,6 +519,24 @@ enum BackupService {
                 rir: dto.rir
             ))
             summary.effortsAdded += 1
+        }
+
+        // Body measurements, deduplicated by (date, metric, value).
+        let localMeasurements = try context.fetch(FetchDescriptor<BodyMeasurement>())
+        for dto in document.measurements ?? [] {
+            if localMeasurements.contains(where: {
+                abs($0.date.timeIntervalSince(dto.date)) < dateTolerance
+                    && $0.metricRaw == dto.metricRaw
+                    && abs($0.valueCm - dto.valueCm) < 0.001
+            }) {
+                summary.skipped += 1
+                continue
+            }
+            let measurement = BodyMeasurement(date: dto.date, metric: .waist, valueCm: dto.valueCm)
+            // Preserve the raw metric even if this app version doesn't know it.
+            measurement.metricRaw = dto.metricRaw
+            context.insert(measurement)
+            summary.measurementsAdded += 1
         }
 
         if let dto = document.settings {

@@ -1,5 +1,6 @@
 import SwiftUI
 import UserNotifications
+import Combine
 
 struct RootTabView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -48,6 +49,9 @@ struct RootTabView: View {
         .environment(router)
         .onChange(of: scenePhase) { _, newPhase in
             handlePhaseChange(newPhase)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openWorkoutTab)) { _ in
+            router.selectedTab = .workout
         }
     }
 

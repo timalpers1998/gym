@@ -41,7 +41,7 @@ enum GymSchemaV3: VersionedSchema {
 
 enum GymMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [GymSchemaV1.self, GymSchemaV2.self, GymSchemaV3.self, GymSchemaV4.self]
+        [GymSchemaV1.self, GymSchemaV2.self, GymSchemaV3.self, GymSchemaV4.self, GymSchemaV5.self]
     }
 
     static var stages: [MigrationStage] {
@@ -49,6 +49,7 @@ enum GymMigrationPlan: SchemaMigrationPlan {
             .lightweight(fromVersion: GymSchemaV1.self, toVersion: GymSchemaV2.self),
             .lightweight(fromVersion: GymSchemaV2.self, toVersion: GymSchemaV3.self),
             .lightweight(fromVersion: GymSchemaV3.self, toVersion: GymSchemaV4.self),
+            .lightweight(fromVersion: GymSchemaV4.self, toVersion: GymSchemaV5.self),
         ]
     }
 }
@@ -62,3 +63,5 @@ typealias WorkoutExercise = GymSchemaV4.WorkoutExercise
 typealias SetEntry = GymSchemaV4.SetEntry
 typealias BodyWeightEntry = GymSchemaV2.BodyWeightEntry
 typealias SetEffort = GymSchemaV3.SetEffort
+typealias BodyMeasurement = GymSchemaV5.BodyMeasurement
+typealias ProgressPhoto = GymSchemaV5.ProgressPhoto

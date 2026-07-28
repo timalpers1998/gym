@@ -10,7 +10,7 @@ struct GymTrackerApp: App {
     @State private var settings: AppSettings
 
     init() {
-        let container = ModelContainerFactory.make()
+        let container = ModelContainerFactory.shared
         self.container = container
         SeedService.seedIfNeeded(context: container.mainContext)
         Self.removeDraftTemplates(context: container.mainContext)

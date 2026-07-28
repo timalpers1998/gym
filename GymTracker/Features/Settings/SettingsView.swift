@@ -94,7 +94,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Data")
                 } footer: {
-                    Text("The CSV export covers every set from \(finishedWorkouts.count) workout\(finishedWorkouts.count == 1 ? "" : "s"). The backup file also includes routines, body weight, effort logs and settings — save it to Files or iCloud Drive, and restore it on a new phone to move everything over.")
+                    Text("The CSV export covers every set from \(finishedWorkouts.count) workout\(finishedWorkouts.count == 1 ? "" : "s"). The backup file also includes routines, body weight, measurements, effort logs and settings — save it to Files or iCloud Drive, and restore it on a new phone to move everything over. Progress photos are not included.")
                 }
 
                 Section {
@@ -182,6 +182,7 @@ struct SettingsView: View {
             append(summary.exercisesAdded, "exercise")
             append(summary.bodyWeightAdded, "body weight entry", "body weight entries")
             append(summary.effortsAdded, "effort log")
+            append(summary.measurementsAdded, "measurement")
 
             var message = parts.isEmpty
                 ? "Everything in the backup is already on this device."

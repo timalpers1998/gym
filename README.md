@@ -11,6 +11,8 @@ A personal iOS workout tracker built with SwiftUI, SwiftData, and Swift Charts.
 - **Exercise library** — ships with ~70 common exercises grouped by muscle group; add your own custom exercises.
 - **Supersets & set types** — link exercises into supersets (long-press an exercise, "Superset with Next"; the rest timer waits for the round's last exercise), and mark sets as drop set, to-failure, or AMRAP.
 - **Timed exercises** — planks, carries and holds log time under load instead of reps, with longest-set and total-time charts.
+- **Measurements & progress photos** — track waist, arms and six more body sites with per-site charts, and keep a photo timeline (photos stay on-device and are excluded from the JSON backup).
+- **Siri & Shortcuts** — "Start a workout in GymTracker" (optionally naming a routine) and "Log my weight in GymTracker" work from Siri, Spotlight and the Shortcuts app.
 
 All data stays on-device (SwiftData). No account, no backend.
 
@@ -38,6 +40,18 @@ Or from the command line:
 xcodebuild -project GymTracker.xcodeproj -scheme GymTracker \
   -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
+
+### Running the tests
+
+Press **⌘U** in Xcode, or:
+
+```sh
+xcodebuild -project GymTracker.xcodeproj -scheme GymTracker \
+  -destination 'platform=iOS Simulator,name=iPhone 16' test
+```
+
+The `GymTrackerTests` target covers the progression math, formatters,
+superset grouping, template round-trips, and backup import/export.
 
 ### Running on your iPhone
 

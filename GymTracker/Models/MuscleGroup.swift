@@ -72,6 +72,22 @@ enum SetType: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+/// Body sites tracked in the measurements section, stored in centimeters.
+enum BodyMetric: String, CaseIterable, Codable, Identifiable {
+    case neck
+    case shoulders
+    case chest
+    case waist
+    case hips
+    case biceps
+    case thigh
+    case calf
+
+    var id: String { rawValue }
+
+    var displayName: String { rawValue.capitalized }
+}
+
 enum Equipment: String, CaseIterable, Codable, Identifiable {
     case barbell
     case dumbbell
